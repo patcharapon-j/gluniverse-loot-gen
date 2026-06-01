@@ -31,6 +31,9 @@
   "GLLG.settings.variantABP.name": "Automatic Bonus Progression",
   "GLLG.settings.variantABP.hint": "Enable if this campaign uses the ABP variant (fundamental bonuses come from the character, not runes). Changes how the auditor interprets fundamentals.",
 
+  "GLLG.settings.proficiencyWithoutLevel.name": "Proficiency Without Level",
+  "GLLG.settings.proficiencyWithoutLevel.hint": "Enable if this campaign uses the Proficiency Without Level variant (character level is not added to proficiency-based modifiers and DCs). When on, LLM-authored workshop items are told to scale their modifiers and DCs to the variant's flatter math instead of the by-level baseline.",
+
   "GLLG.settings.driftTolerance.name": "Wealth Drift Tolerance (%)",
   "GLLG.settings.driftTolerance.hint": "How far a PC's wealth may stray from the expected curve before the auditor flags them ahead or behind.",
 
@@ -54,6 +57,11 @@
 
   "GLLG.settings.campaignContext.name": "Campaign Context (for the LLM)",
   "GLLG.settings.campaignContext.hint": "A short blurb describing your campaign — setting, tone, region, recurring villains, signature themes. Fed to the LLM as baseline context so generated flavor, provenance, and custom workshop loot fit your world. Leave blank to keep flavor generic. Only used when the LLM sidecar is enabled.",
+
+  "GLLG.llmlog.menuName": "LLM Call Log",
+  "GLLG.llmlog.menuLabel": "View LLM Call Log",
+  "GLLG.llmlog.menuHint": "Open a log of recent calls to the LLM sidecar (flavor and workshop) — status, duration, and any error (timeout, HTTP 502, bad response). Handy for diagnosing why a generation failed.",
+  "GLLG.llmlog.title": "GLUniverse — LLM Call Log",
 
   "GLLG.controls.openAuditor": "Loot Auditor",
   "GLLG.controls.workshop": "Loot Workshop",

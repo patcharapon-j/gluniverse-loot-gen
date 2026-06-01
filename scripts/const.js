@@ -20,6 +20,7 @@ export const SETTINGS = {
   partyActorId: "partyActorId",           // String (world): explicit party actor override (else auto-detect)
   shoppingAccess: "shoppingAccess",       // String (world): "free" | "limited" | "none" — core/unusual baseline
   variantABP: "variantABP",               // Boolean (world): campaign runs Automatic Bonus Progression
+  proficiencyWithoutLevel: "proficiencyWithoutLevel", // Boolean (world): campaign uses the Proficiency Without Level variant (drops level from modifiers/DCs)
   driftTolerancePct: "driftTolerancePct", // Number (world): +/- % band before wealth-drift flags
   heirloomMode: "heirloomMode",           // Boolean (world): fundamental runes awaken in-place on signature items
   heirloomArmor: "heirloomArmor",         // Boolean (world): also awaken armor fundamentals (else weapons only)
@@ -29,6 +30,7 @@ export const SETTINGS = {
   sidecarUrl: "sidecarUrl",               // String (world): base URL of the claude -p sidecar (same-origin path or full URL)
   sidecarSecret: "sidecarSecret",         // String (world, GM-only): shared secret sent as a header
   campaignContext: "campaignContext",     // String (world): GM's campaign blurb fed to the LLM as baseline flavor context
+  llmLog: "llmLog",                       // Array (client, hidden): recent LLM sidecar calls for the diagnostics viewer
 
   // --- Auditor window (client) ---
   auditorPosition: "auditorPosition",     // Object (client): {left,top}

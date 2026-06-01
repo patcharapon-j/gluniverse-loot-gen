@@ -413,6 +413,65 @@
 .gllg-genform select option,.gllg-genform select optgroup{background:#161d2c;color:var(--ink)}
 .gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}
 
+/* ---- LLM "working…" progress card (whispered while the sidecar runs) ---- */
+.gllg-card.gllg-progress .gllg-card-title i{color:var(--tint)}
+.gllg-progress-body{display:flex;align-items:center;gap:10px;padding:11px 13px 13px}
+.gllg-progress-body .gllg-spinner i{color:var(--tint);font-size:16px;filter:drop-shadow(0 0 10px var(--glowsoft))}
+.gllg-progress-text{font-size:11.5px;color:var(--muted);line-height:1.4}
+
+/* ---- GM-only icon-generation prompt folded into an item description ---- */
+.gllg-icon-note{margin:.5em 0 .2em;padding:7px 10px;border-radius:8px;
+  border:1px solid rgba(155,179,224,.28);background:rgba(107,134,214,.08)}
+.gllg-icon-note .gllg-icon-note-head{margin:0 0 .25em;font-size:.92em;color:#9bb3e0}
+.gllg-icon-note .gllg-icon-note-head i{margin-right:.35em}
+.gllg-icon-note .gllg-icon-note-body{margin:0;font-size:.92em;line-height:1.4;font-style:italic;opacity:.92}
+
+/* ---- roomy multi-line campaign-context field in the settings window ---- */
+textarea.gllg-settings-textarea{width:100%;min-height:7.5em;resize:vertical;
+  font-family:inherit;line-height:1.45;padding:6px 8px}
+
+/* ---- LLM on/off toggle in the generate dialog ---- */
+.gllg-genform .gllg-check{display:flex;align-items:flex-start;gap:8px;flex-direction:row;
+  text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:700;color:var(--ink);cursor:pointer}
+.gllg-genform .gllg-check input{flex:0 0 auto;margin-top:1px;width:auto}
+.gllg-genform .gllg-check input:disabled{opacity:.5;cursor:not-allowed}
+.gllg-genform .gllg-llm-toggle{padding-top:2px}
+
+/* ---- LLM call-log viewer (settings menu) ---- */
+.application.gllg-llm-log{
+  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
+  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
+  --tint:#6b86d6; --glowsoft:rgba(120,150,225,.16);
+  --ok:#67d39b; --crit:#e0584f;
+  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--edge);border-radius:13px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0) 22%),linear-gradient(160deg,#161d2c,#0a0e16 80%);
+  box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.09);
+}
+.application.gllg-llm-log .window-header{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));border-bottom:1px solid var(--hair)}
+.application.gllg-llm-log .window-header .window-title{font-family:var(--font);font-weight:700;color:var(--ink)}
+.application.gllg-llm-log .window-content{font-family:var(--font);color:var(--ink);background:none;padding:0}
+.gllg-llmlog-wrap{display:flex;flex-direction:column;height:100%;min-height:0}
+.gllg-llmlog-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 12px;border-bottom:1px solid var(--hair)}
+.gllg-llmlog-count{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.gllg-llmlog-actions{display:flex;gap:7px}
+.gllg-llmlog-btn{font:inherit;font-size:11px;font-weight:700;color:var(--ink);cursor:pointer;
+  padding:5px 10px;border-radius:7px;border:1px solid var(--edge);background:rgba(255,255,255,.06)}
+.gllg-llmlog-btn:hover{background:rgba(255,255,255,.12);box-shadow:0 0 12px var(--glowsoft)}
+.gllg-llmlog-list{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.gllg-llmlog-list .gllg-empty{padding:18px 12px;text-align:center;color:var(--faint);font-size:12px;line-height:1.5}
+.gllg-llmlog-row{padding:7px 10px;border-radius:8px;border:1px solid var(--hair);background:rgba(255,255,255,.03)}
+.gllg-llmlog-row.is-fail{border-color:rgba(224,88,79,.35);background:rgba(224,88,79,.07)}
+.gllg-llmlog-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.gllg-llmlog-ok{color:var(--ok);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.gllg-llmlog-fail{color:var(--crit);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.gllg-llmlog-kind{font-size:12px;font-weight:700;color:var(--ink)}
+.gllg-llmlog-meta{margin-left:auto;font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.gllg-llmlog-detail{margin-top:3px;font-size:11px;color:var(--muted);line-height:1.4}
+.gllg-llmlog-err{margin-top:3px;font-size:11px;color:#f0cdc8;line-height:1.4}
+
 @media (prefers-reduced-motion: reduce){
   .gllg-card,.gllg-card *{animation:none !important;transition:none !important}
+  .gllg-progress-body .gllg-spinner i,.gllg-card .fa-beat-fade{animation:none !important}
 }

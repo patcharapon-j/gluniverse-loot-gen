@@ -28,7 +28,13 @@ const PORT = Number(process.env.GLLG_PORT || process.env.PORT || 7878);
 const SECRET = process.env.GLLG_SECRET || "";
 const CLAUDE_BIN = process.env.GLLG_CLAUDE_BIN || "claude";
 const MODEL = process.env.GLLG_MODEL || "";              // optional --model override
-const TIMEOUT_MS = Number(process.env.GLLG_TIMEOUT_MS || 25000);
+// Base wall-clock cap for a single claude call (flavor, or one workshop item).
+const TIMEOUT_MS = Number(process.env.GLLG_TIMEOUT_MS || 45000);
+// Workshop authoring scales with the number of items requested — generating a
+// batch legitimately takes longer, so the cap grows per item (the old fixed
+// 25s cap is why count>1 timed out and surfaced as a 502).
+const TIMEOUT_PER_ITEM_MS = Number(process.env.GLLG_TIMEOUT_PER_ITEM_MS || 30000);
+const MAX_TIMEOUT_MS = Number(process.env.GLLG_MAX_TIMEOUT_MS || 240000);
 const MAX_ITEMS = Number(process.env.GLLG_MAX_ITEMS || 40);
 const MAX_BODY = Number(process.env.GLLG_MAX_BODY || 256 * 1024); // 256 KB cap
 
@@ -60,7 +66,9 @@ const server = createServer((req, res) => {
       // /workshop — the GM asks the LLM to author bespoke custom loot directly.
       if (isWorkshop) {
         try {
-          const items = await runClaude(buildWorkshopPrompt(payload), parseWorkshopItems);
+          const count = clampInt(payload.count, 1, 8, 1);
+          const timeout = Math.min(MAX_TIMEOUT_MS, TIMEOUT_MS + (count - 1) * TIMEOUT_PER_ITEM_MS);
+          const items = await runClaude(buildWorkshopPrompt(payload), parseWorkshopItems, timeout);
           return json(res, 200, { items: items ?? [] });
         } catch (err) {
           console.error("GLLG sidecar | workshop claude failed:", err?.message || err);
@@ -100,14 +108,14 @@ server.listen(PORT, HOST, () => {
  * whose `.result` holds the model's text; `parse` turns that text into the
  * endpoint's shape (a flavor map for /flavor, an item array for /workshop).
  */
-function runClaude(prompt, parse = parseFlavorMap) {
+function runClaude(prompt, parse = parseFlavorMap, timeout = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "json"];
     if (MODEL) args.push("--model", MODEL);
 
     const child = execFile(
       CLAUDE_BIN, args,
-      { timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
+      { timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
       (err, stdout) => {
         if (err) return reject(err);
         try { resolve(parse(stdout)); }
@@ -247,7 +255,9 @@ function buildWorkshopPrompt(payload) {
     "item type, theme, fair price, valid traits, and a vivid, correctly-encoded description.",
     "",
     `GM request: ${ask}`,
-    level != null ? `Target item level: ${level}.` : "Pick sensible item levels for the request.",
+    level != null
+      ? `Target item level: ${level}.`
+      : "No target level was given — infer an appropriate PF2e item level (0-25) for EACH item from the GM's request, the party's levels, and standard item-level conventions (a more powerful, rarer, or higher-grade item is a higher level). Set each item's \"level\" accordingly and price it for that level.",
     rarity && rarity !== "any" ? `Preferred rarity: ${rarity}.` : "",
     campaign ? `Campaign background (ground every item in this world): ${campaign}` : "",
     notes ? `Extra context for this batch: ${notes}` : "",
@@ -264,6 +274,17 @@ function buildWorkshopPrompt(payload) {
     '  "equipment"   (rings, staves, wands, worn/wondrous gear, shields, tools — the catch-all).',
     "",
     "Use real lowercase, hyphenated PF2e trait slugs (e.g. magical, evocation, invested, cursed, fire).",
+    "",
+    "Give every item APPROPRIATE traits — never leave the traits array empty:",
+    '  - Any magic item: include "magical" AND a tradition trait ("arcane", "divine", "occult", or "primal").',
+    '    Add a school trait (e.g. "evocation", "abjuration") and/or an energy trait (e.g. "fire", "cold") when it fits.',
+    '  - WEAPONS: also set "category" ("simple", "martial", or "advanced") and "group"',
+    '    ("sword", "axe", "club", "polearm", "spear", "bow", "dart", "knife", "flail", "hammer", "pick", "brawling", etc.),',
+    '    plus relevant combat traits (e.g. "agile", "finesse", "reach", "thrown-20", "versatile-s", "deadly-d8", "two-hand-d10").',
+    '  - ARMOR: also set "category" ("light", "medium", or "heavy") and "group"',
+    '    ("leather", "chain", "composite", "plate", etc.), plus relevant traits (e.g. "comfort", "flexible", "bulwark", "noisy").',
+    '  - WORN/invested gear (rings, cloaks, amulets, belts, trinkets): include "invested" (and "magical" + a tradition if magical).',
+    '  - CONSUMABLES: include "consumable" and the kind ("potion", "elixir", "scroll", "talisman", "oil", "poison"); add a tradition/energy trait if magical.',
     usages ? `Valid usage slugs include: ${usages}.`
       : 'Use a usage slug like "held-in-one-hand", "held-in-two-hands", "worn", or "worngloves".',
     `Valid rarities: ${rarities}.`,
@@ -281,7 +302,8 @@ function buildWorkshopPrompt(payload) {
     "Return ONLY a JSON array. Each element is an object with:",
     '  "name", "type", "level" (int 0-25), "rarity", "price" (gp number >= 0),',
     '  "bulk" (e.g. "L", "1", "—"), "usage" (a usage slug),',
-    '  "traits" (array of trait slugs),',
+    '  "traits" (array of trait slugs — appropriate to the item, never empty),',
+    '  "category" + "group" (REQUIRED for weapons and armor; see above),',
     '  "damageType" + "damageDie" (optional, weapons only),',
     '  "description" (2-5 sentences using the enrichers above where anything is rolled),',
     '  "flavor" (one vivid sentence, <= 200 chars),',
@@ -317,6 +339,8 @@ function parseWorkshopItems(stdout) {
       bulk: str(it.bulk, 12) ?? "—",
       usage: str(it.usage, 60),
       traits: normTraits(it.traits),
+      category: str(it.category, 40),
+      group: str(it.group ?? it.weaponGroup ?? it.armorGroup, 40),
       damageType: str(it.damageType, 30),
       damageDie: str(it.damageDie ?? it.die, 6),
       description: str(it.description, 1500) ?? "",

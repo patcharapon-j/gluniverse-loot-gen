@@ -84,9 +84,16 @@ Generate a hoard; the review card shows an italic flavor line per item and a
 | `GLLG_PORT` | `7878` | bind port |
 | `GLLG_CLAUDE_BIN` | `claude` | path to the Claude CLI |
 | `GLLG_MODEL` | *(CLI default)* | optional `--model` override |
-| `GLLG_TIMEOUT_MS` | `25000` | wall-clock cap per call |
+| `GLLG_TIMEOUT_MS` | `45000` | base wall-clock cap per call (flavor / one workshop item) |
+| `GLLG_TIMEOUT_PER_ITEM_MS` | `30000` | extra time per additional workshop item |
+| `GLLG_MAX_TIMEOUT_MS` | `240000` | hard ceiling for a workshop batch |
 | `GLLG_MAX_ITEMS` | `40` | per-request item cap |
 | `GLLG_MAX_BODY` | `262144` | request body byte cap |
+
+> **Workshop timeouts.** Authoring multiple items takes longer than one, so the
+> workshop cap scales as `GLLG_TIMEOUT_MS + (count − 1) × GLLG_TIMEOUT_PER_ITEM_MS`
+> (bounded by `GLLG_MAX_TIMEOUT_MS`). Make sure your nginx `proxy_read_timeout`
+> is at least as large, or a slow multi-item request gets cut off as a **502**.
 
 ## Quick local test
 
@@ -109,10 +116,15 @@ The same sidecar also backs the **Loot Workshop** — the GM's `/grill-me` comma
 picks, the workshop has the LLM **author bespoke loot directly**: the module
 POSTs a free-text request and the model returns a JSON array of item specs
 (name, type, level, rarity, price, traits, usage, description, flavor,
-provenance — plus optional weapon damageType/die). The model is told to pick the
-**correct PF2e item type** (weapon / armor / consumable / treasure / equipment),
-use real trait slugs, and encode any dice/DCs as **Foundry enrichers**
-(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
+provenance — plus `category`/`group` for weapons & armor and optional weapon
+damageType/die). The model is told to pick the **correct PF2e item type**
+(weapon / armor / consumable / treasure / equipment), give each item
+**appropriate traits** (`magical` + a tradition for magic items, combat traits +
+category/group for weapons, armor traits + category/group for armor, `invested`
+for worn gear), and encode any dice/DCs as **Foundry enrichers**
+(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`). The request
+also carries the campaign's variant rules (e.g. **Proficiency Without Level**) so
+authored modifiers and DCs match your table's math.
 
 The module then **sanitizes traits/usage/damage against the live `CONFIG.PF2E`**
 and **validates each item against the actual PF2e DataModel** (filling defaults,

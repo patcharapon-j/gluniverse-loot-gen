@@ -13,6 +13,7 @@
 import { MODULE_ID, TARGET, PARTY_LEDGER_KEY } from "../const.js";
 import { WealthLedger } from "../auditor/ledger.js";
 import { resolveParty } from "../pf2e/actor-reader.js";
+import { iconNoteHtml } from "./icon-note.js";
 
 /**
  * Realize a proposal. Returns { ok, created:[{type, name, uuid?}], reason? }.
@@ -275,9 +276,31 @@ async function hydratePick(pick) {
     const doc = await safeFromUuid(pick?.uuid);
     if (!doc) return null;
     data = doc.toObject();
-    applyFlavor(data, pick); // compendium-backed picks get their flavor folded in
+    applyFlavor(data, pick);    // compendium-backed picks get their flavor folded in
+    applyIconNote(data, pick);  // …and a GM-only icon-generation prompt
   }
   if (pick.qty && pick.qty > 1) foundry.utils.setProperty(data, "system.quantity", pick.qty);
+  return data;
+}
+
+/**
+ * Append a GM-only icon-generation prompt to a hydrated compendium item's GM
+ * notes (system.description.gm), so the GM has a ready prompt to mint fitting
+ * art. Uses any LLM-authored hint (pick.iconHint) else synthesizes from the
+ * item's own facts. Never disturbs the player-facing description or rules.
+ */
+function applyIconNote(data, pick) {
+  const note = iconNoteHtml({
+    name: data.name,
+    type: data.type,
+    rarity: foundry.utils.getProperty(data, "system.traits.rarity") ?? pick?.rarity,
+    traits: foundry.utils.getProperty(data, "system.traits.value") ?? [],
+    flavor: pick?.flavor ?? "",
+    hint: pick?.iconHint ?? ""
+  });
+  if (!note) return data;
+  const existing = foundry.utils.getProperty(data, "system.description.gm") ?? "";
+  foundry.utils.setProperty(data, "system.description.gm", existing ? `${existing}${note}` : note);
   return data;
 }
 

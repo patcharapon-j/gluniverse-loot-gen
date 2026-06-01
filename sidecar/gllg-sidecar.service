@@ -26,7 +26,12 @@ Environment=GLLG_PORT=7878
 Environment=GLLG_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_STRING
 Environment=GLLG_CLAUDE_BIN=claude
 # Environment=GLLG_MODEL=claude-sonnet-4-6
-Environment=GLLG_TIMEOUT_MS=25000
+# Base per-call cap (flavor / a single workshop item). Workshop batches add
+# GLLG_TIMEOUT_PER_ITEM_MS per extra item, capped at GLLG_MAX_TIMEOUT_MS — this
+# is why count>1 no longer times out into a 502.
+Environment=GLLG_TIMEOUT_MS=45000
+Environment=GLLG_TIMEOUT_PER_ITEM_MS=30000
+Environment=GLLG_MAX_TIMEOUT_MS=240000
 
 # --- hardening: flavor text only, never loot/actor/shell ---
 NoNewPrivileges=true

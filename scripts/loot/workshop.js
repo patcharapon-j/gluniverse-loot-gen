@@ -14,8 +14,21 @@
 
 import { MODULE_ID, SETTINGS, TARGET } from "../const.js";
 import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import { iconNoteHtml } from "./icon-note.js";
+import { logLlmCall } from "./llm-log.js";
 
-const REQUEST_TIMEOUT_MS = 45000; // workshop authoring runs longer than flavor
+// Authoring scales with how many items the model writes — a single item is
+// quick, but a batch can take a while. The cap keeps a runaway request bounded.
+// These must stay >= the sidecar's own per-call timeout (server.mjs) or the
+// browser aborts a request the sidecar would have answered (the 502 case).
+const REQUEST_TIMEOUT_BASE_MS = 60000;     // first item
+const REQUEST_TIMEOUT_PER_ITEM_MS = 30000; // each additional item
+const REQUEST_TIMEOUT_MAX_MS = 240000;     // hard ceiling
+
+function workshopTimeoutMs(count) {
+  const extra = Math.max(0, (Math.trunc(Number(count)) || 1) - 1);
+  return Math.min(REQUEST_TIMEOUT_MAX_MS, REQUEST_TIMEOUT_BASE_MS + extra * REQUEST_TIMEOUT_PER_ITEM_MS);
+}
 
 /** The workshop needs the sidecar; it's available once a URL is configured. */
 export function workshopEnabled() {
@@ -87,6 +100,9 @@ async function callWorkshop(params) {
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,
     party: partyBlurb(),
+    // Campaign variant rules that change item math — the model adjusts modifiers
+    // and DCs to suit (e.g. Proficiency Without Level uses flatter numbers).
+    rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
     // Live PF2e vocabulary so the model encodes against the actual system.
     pf2e: {
       damageTypes: keysOf(cfg().damageTypes),
@@ -95,8 +111,9 @@ async function callWorkshop(params) {
     }
   };
 
+  const t0 = Date.now();
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), workshopTimeoutMs(params.count));
   try {
     const res = await fetch(`${base}/workshop`, {
       method: "POST",
@@ -109,7 +126,14 @@ async function callWorkshop(params) {
     });
     if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
     const data = await res.json();
-    return Array.isArray(data?.items) ? data.items : [];
+    const items = Array.isArray(data?.items) ? data.items : [];
+    logLlmCall({ kind: "workshop", endpoint: "/workshop", ok: true, status: res.status,
+      ms: Date.now() - t0, detail: `requested ${params.count}, authored ${items.length}` });
+    return items;
+  } catch (err) {
+    logLlmCall({ kind: "workshop", endpoint: "/workshop", ok: false, ms: Date.now() - t0,
+      detail: `requested ${params.count}`, error: errText(err) });
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -149,11 +173,14 @@ function buildWorkshopProposal(params, specs) {
 
   const totalGp = round2(picks.reduce((s, x) => s + x.gp, 0));
   const target = TARGET.LOOT_ACTOR;
+  // When the GM left the level blank, the LLM chose a level per item — reflect
+  // that on the card by averaging the authored levels rather than assuming party.
+  const proposalLevel = params.level ?? deriveProposalLevel(picks, partyLevel);
   return {
     id: `gllg-workshop-${Date.now()}`,
     context: "workshop",
     label: params.label,
-    level: params.level ?? partyLevel,
+    level: proposalLevel,
     partySize,
     target,
     request: { context: "workshop", meta: { workshop: true } }, // minimal serializable stub
@@ -213,20 +240,27 @@ function buildDescription(spec) {
 
 /** Build the system object for a given item type, core fields + safe defaults. */
 function buildSystemForType(spec, description) {
+  const gmNote = iconNoteHtml({
+    name: spec.name, type: spec.type, rarity: spec.rarity,
+    traits: spec.traits, flavor: spec.flavor, hint: spec.iconHint
+  });
   const base = {
-    description: { value: description },
+    description: { value: description, gm: gmNote },
     level: { value: clampInt(spec.level, 0, 25, 0) },
     price: { value: { gp: Math.max(0, Number(spec.price) || 0) } },
     quantity: 1,
     bulk: { value: bulkToNumber(spec.bulk) },
-    traits: { value: validTraitsFor(spec.type, spec.traits), rarity: validRarity(spec.rarity), otherTags: [] }
+    traits: {
+      value: withInferredTraits(spec.type, validTraitsFor(spec.type, spec.traits)),
+      rarity: validRarity(spec.rarity), otherTags: []
+    }
   };
 
   switch (spec.type) {
     case "weapon":
       return {
         ...base,
-        category: "martial", group: "sword", baseItem: null,
+        category: validWeaponCategory(spec.category), group: validWeaponGroup(spec.group), baseItem: null,
         damage: {
           dice: 1,
           die: validDamageDie(spec.damageDie) ?? "d6",
@@ -242,7 +276,7 @@ function buildSystemForType(spec, description) {
       // The system fixes armor usage to the armor slot — don't author it.
       return {
         ...base,
-        category: "light", group: "leather", baseItem: null,
+        category: validArmorCategory(spec.category), group: validArmorGroup(spec.group), baseItem: null,
         acBonus: 1, strength: null, dexCap: 4, checkPenalty: 0, speedPenalty: 0,
         runes: { potency: 0, resilient: 0, property: [] }
       };
@@ -293,11 +327,14 @@ function sanitizeSpec(raw) {
     bulk: raw?.bulk,
     usage: String(raw?.usage ?? "").slice(0, 60),
     traits: Array.isArray(raw?.traits) ? raw.traits : [],
+    category: String(raw?.category ?? "").slice(0, 40),
+    group: String(raw?.group ?? raw?.weaponGroup ?? raw?.armorGroup ?? "").slice(0, 40),
     damageType: raw?.damageType ?? raw?.damagetype ?? null,
     damageDie: raw?.damageDie ?? raw?.die ?? null,
     description: cleanText(raw?.description, 1500),
     flavor: cleanText(raw?.flavor, 280),
-    provenance: cleanText(raw?.provenance, 200)
+    provenance: cleanText(raw?.provenance, 200),
+    iconHint: cleanText(raw?.iconPrompt ?? raw?.icon ?? raw?.iconHint, 240)
   };
 }
 
@@ -322,7 +359,26 @@ function normType(t) {
   return "equipment"; // rings, staves, wands, worn/wondrous gear, shields, etc.
 }
 
-/** Keep only traits valid for this item type on the live system (drop unknowns). */
+/* Magic/tradition/energy traits are valid on items of any type but often live in
+   a different CONFIG bucket than the item-type pool — so the type pool alone
+   would wrongly strip a magic weapon's "arcane"/"evocation"/"fire". Union these
+   in so appropriate traits survive validation. */
+const TRADITION_TRAITS = new Set(["arcane", "divine", "occult", "primal"]);
+const MAGIC_SCHOOL_TRAITS = new Set([
+  "abjuration", "conjuration", "divination", "enchantment",
+  "evocation", "illusion", "necromancy", "transmutation"
+]);
+const UNIVERSAL_ITEM_TRAITS = new Set([
+  "magical", ...TRADITION_TRAITS, ...MAGIC_SCHOOL_TRAITS,
+  // energy / damage descriptors commonly carried by magic gear
+  "acid", "cold", "electricity", "fire", "force", "mental", "poison", "sonic",
+  "vitality", "void", "spirit", "positive", "negative", "bleed", "light", "holy", "unholy",
+  // item-wide descriptors
+  "invested", "cursed", "alchemical", "consumable", "apex", "artifact",
+  "intelligent", "saggorak", "tattoo"
+]);
+
+/** Keep traits valid for this item type (plus the universal magic set) on the live system. */
 function validTraitsFor(type, traits) {
   if (!Array.isArray(traits)) return [];
   const c = cfg();
@@ -331,7 +387,8 @@ function validTraitsFor(type, traits) {
     : type === "consumable" ? c.consumableTraits
     : c.equipmentTraits;
   const valid = keysOf(pool);
-  const set = valid.length ? new Set(valid) : null; // null = config absent → don't over-filter
+  // null = config absent → don't over-filter; else the type pool ∪ universal magic traits.
+  const set = valid.length ? new Set([...valid, ...UNIVERSAL_ITEM_TRAITS]) : null;
   const out = [];
   for (const t of traits) {
     const slug = normalizeSlug(t);
@@ -340,11 +397,44 @@ function validTraitsFor(type, traits) {
   return [...new Set(out)].slice(0, 16);
 }
 
+/**
+ * Guarantee an item carries appropriate baseline traits. A tradition or school
+ * trait strictly implies "magical", so add it when the model named one but
+ * forgot the umbrella trait — unless the item is alchemical (which is the
+ * non-magical counterpart). Treasure is never auto-tagged magical.
+ */
+function withInferredTraits(type, traits) {
+  if (type === "treasure") return traits;
+  const has = new Set(traits);
+  const magicEvident = traits.some(t => TRADITION_TRAITS.has(t) || MAGIC_SCHOOL_TRAITS.has(t));
+  if (magicEvident && !has.has("magical") && !has.has("alchemical")) {
+    return [...traits, "magical"];
+  }
+  return traits;
+}
+
 function validRarity(r) {
   const set = new Set(keysOf(cfg().rarityTraits, ["common", "uncommon", "rare", "unique"]));
   const s = String(r ?? "").toLowerCase();
   return set.has(s) ? s : "common";
 }
+
+/* Weapon/armor category + group keep custom gear mechanically appropriate (they
+   drive proficiency, crit specialization, and derived traits). Validate against
+   the live CONFIG; fall back to a sensible default when the model omits or
+   misnames one. */
+function validFromConfig(value, pool, fallbacks) {
+  const set = new Set(keysOf(pool));
+  const s = normalizeSlug(value);
+  if (set.has(s)) return s;
+  if (!set.size) return fallbacks[0]; // config absent → trust our default
+  for (const f of fallbacks) if (set.has(f)) return f;
+  return keysOf(pool)[0];
+}
+function validWeaponCategory(c) { return validFromConfig(c, cfg().weaponCategories, ["martial", "simple"]); }
+function validWeaponGroup(g) { return validFromConfig(g, cfg().weaponGroups, ["sword", "club"]); }
+function validArmorCategory(c) { return validFromConfig(c, cfg().armorCategories, ["light", "medium"]); }
+function validArmorGroup(g) { return validFromConfig(g, cfg().armorGroups, ["leather", "chain"]); }
 
 function validDamageType(t) {
   const set = new Set(keysOf(cfg().damageTypes));
@@ -390,6 +480,13 @@ function cleanText(s, max) {
 }
 
 /* ------------------------------ helpers ------------------------------ */
+
+/** Average of the AI-authored item levels (rounded), or the party level if none. */
+function deriveProposalLevel(picks, fallback) {
+  const levels = picks.map(p => Number(p.level)).filter(n => Number.isFinite(n));
+  if (!levels.length) return fallback;
+  return Math.round(levels.reduce((s, n) => s + n, 0) / levels.length);
+}
 
 function partyContext() {
   try {
@@ -443,4 +540,10 @@ function esc(s) {
 }
 function safeSetting(key, fallback) {
   try { return game.settings.get(MODULE_ID, key); } catch { return fallback; }
+}
+
+/** Human-friendly one-liner for the call log (distinguishes a client-side abort). */
+function errText(err) {
+  if (err?.name === "AbortError") return "timed out (client)";
+  return err?.message || String(err ?? "unknown error");
 }
