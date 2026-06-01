@@ -124,10 +124,13 @@ so forged weapons/armor inherit proper mechanics, and encode any dice/DCs as
 **Foundry enrichers** (`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
 
 To get traits right, the prompt embeds a full **PF2e trait dictionary**
-([`pf2e-traits.mjs`](pf2e-traits.mjs)) — every weapon, armor, general, magic, and
-energy trait with a one-line meaning and the exact slug format for parameterized
-ones (`thrown-20`, `versatile-s`, `deadly-d8`, `two-hand-d10`). It's remaster-current
-(spell schools listed only as legacy; vitality/void and holy/unholy energy). On the
+([`pf2e-traits.mjs`](pf2e-traits.mjs)) — every weapon, armor, shield, general,
+magic, effect, and energy trait, each with a verified one-line meaning and the
+exact slug format for parameterized ones (`thrown-20`, `versatile-s`, `deadly-d8`,
+`two-hand-d10`). The roster mirrors the Archives of Nethys trait index and the
+meanings were checked against the rules (e.g. `recovery` = a thrown weapon returns
+on a miss; `hindering` = -5 to all Speeds). It's remaster-current (spell schools
+listed only as legacy; vitality/void and holy/unholy energy). On the
 module side, if a weapon comes back with no combat trait, the canonical traits are
 **inferred from its base-weapon name** as a safety net (never overriding traits the
 model did choose), and weapons/armor get a validated `baseItem` so they aren't
