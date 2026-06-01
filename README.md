@@ -116,6 +116,12 @@ await api.generate.postReviewCard(proposal);
 ## Releasing (maintainers)
 
 Releases are cut manually from the **Actions** tab → **Release** workflow → *Run workflow*.
-It stamps `module.json` for the chosen version, zips the module, and publishes a GitHub
-Release with `module.json` + `module.zip` as assets, so the manifest link above always
-resolves to the latest. See [.github/workflows/release.yml](.github/workflows/release.yml).
+Pick a **bump** — `patch` / `minor` / `major` — and the version auto-increments from
+`module.json` (or type an explicit `version` to override). The workflow then:
+
+1. stamps `module.json` with the new version + correct manifest/download URLs,
+2. commits the bump back to the branch (so the next auto-increment is cumulative),
+3. zips the module and publishes a GitHub Release with `module.json` + `module.zip`,
+
+so the manifest link above always resolves to the latest. There's also a *pre-release*
+toggle. See [.github/workflows/release.yml](.github/workflows/release.yml).

@@ -1,15 +1,22 @@
 name: Release
 
 # Manual-trigger release. Actions tab → Release → "Run workflow".
-# Produces a GitHub Release with module.json + module.zip as assets, so the
-# "latest" manifest link resolves to it and others can install via manifest URL:
+# Pick a bump (patch / minor / major) and the version is auto-incremented from
+# module.json, committed back to the branch, then published as a GitHub Release
+# with module.json + module.zip as assets — so the "latest" manifest link always
+# resolves to it and others can install via manifest URL:
 #   https://github.com/<owner>/<repo>/releases/latest/download/module.json
 
 on:
   workflow_dispatch:
     inputs:
+      bump:
+        description: "Semver bump (ignored if an explicit version is given)"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
       version:
-        description: "Version to release, e.g. 0.1.1 (blank = use module.json's current version)"
+        description: "Explicit version, e.g. 0.2.0 (overrides bump; blank = auto-increment)"
         required: false
         type: string
       prerelease:
@@ -27,23 +34,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
       - name: Resolve version
         id: ver
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT: ${{ inputs.version }}
         run: |
-          INPUT="${{ inputs.version }}"
-          if [ -n "$INPUT" ]; then
-            VERSION="$INPUT"
+          CURRENT="$(jq -r '.version // "0.0.0"' module.json)"
+          if [ -n "$EXPLICIT" ]; then
+            VERSION="$EXPLICIT"
           else
-            VERSION="$(jq -r '.version' module.json)"
+            BASE="${CURRENT%%-*}"            # drop any -prerelease suffix before bumping
+            IFS='.' read -r MAJ MIN PAT <<< "$BASE"
+            MAJ=${MAJ:-0}; MIN=${MIN:-0}; PAT=${PAT:-0}
+            case "$BUMP" in
+              major) MAJ=$((MAJ + 1)); MIN=0; PAT=0 ;;
+              minor) MIN=$((MIN + 1)); PAT=0 ;;
+              patch|*) PAT=$((PAT + 1)) ;;
+            esac
+            VERSION="$MAJ.$MIN.$PAT"
           fi
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "::error::Could not resolve a version (no input and module.json has none)."
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.+].*)?$'; then
+            echo "::error::Resolved version '$VERSION' is not valid semver."
             exit 1
           fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION"   >> "$GITHUB_OUTPUT"
-          echo "Releasing v$VERSION"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+          echo "Bump '$BUMP': $CURRENT -> $VERSION"
 
       - name: Stamp module.json (version + manifest/download URLs)
         env:
@@ -62,6 +83,20 @@ jobs:
           echo "----- stamped module.json -----"
           cat module.json
 
+      - name: Commit version bump back to branch
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add module.json
+          if git diff --cached --quiet; then
+            echo "module.json unchanged — nothing to commit."
+          else
+            git commit -m "chore(release): v$VERSION"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
       - name: Build module.zip
         run: |
           # module.json must sit at the zip root for Foundry to install it.
@@ -76,7 +111,7 @@ jobs:
           TAG: ${{ steps.ver.outputs.tag }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          # Replace any existing release/tag for this version so re-runs are idempotent.
+          # Idempotent: replace any existing release/tag for this version.
           gh release delete "$TAG" --yes || true
           git push origin ":refs/tags/$TAG" || true
           git tag -f "$TAG"
