@@ -20,7 +20,8 @@ export async function openWorkshopDialog(presetPrompt = "") {
   }
 
   const result = await DialogV2.wait({
-    window: { title: "Loot Workshop", icon: "fa-solid fa-hammer" },
+    window: { title: "Loot Workshop", icon: "fa-solid fa-hammer", resizable: true },
+    position: { width: 480 },
     classes: ["gllg", "gllg-generate", "gllg-workshop"],
     content: buildForm(presetPrompt),
     rejectClose: false,
