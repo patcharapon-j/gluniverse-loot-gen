@@ -277,8 +277,17 @@ function pf2eReferenceBlock(level, pwl) {
     lines.push("  - Standard by-level math is in effect (level is already baked into the table DCs above; do not add or subtract it).");
   }
 
-  lines.push("  - Damage/healing should scale with level, not exceed it: roughly 2-3 dice for low levels, climbing gradually. A weapon's base damage die comes from its group; striking runes add dice (+1 striking = 2 dice, greater = 3, major = 4) — encode those as the weapon die, not as raw bonus damage.");
-  lines.push("  - Do not grant flat untyped bonuses to attack, AC, saves, or skills beyond what runes/items of that level normally give (item bonus +1 at low level, up to +3 at high level).");
+  // Damage / effects / conditions — anchored to the PF2e item-GRADE ladder
+  // (lesser/moderate/greater/major), which scales output with item level.
+  lines.push("  DAMAGE, EFFECTS & CONDITIONS — scale these to the item's grade, set by its level:");
+  lines.push("    Grade by level: lesser ~lvl 1-3, moderate ~lvl 4-8, greater ~lvl 9-14, major ~lvl 15+.");
+  lines.push("    - Instantaneous offensive damage (single target): lesser ~1d6-2d6, moderate ~2d6-4d6, greater ~4d6-6d6, major ~6d6-8d6. Lower it a step for an area or a save-for-half effect. Healing scales the same way.");
+  lines.push("    - Persistent damage runs ~one die-step below the burst (e.g. moderate item -> 1d8 or 2d6 persistent). Splash damage on thrown items is a small flat number (lesser 1, moderate 2, greater 3, major 4), mirroring alchemical bombs.");
+  lines.push("    - Always tag the energy/damage type as a trait inside the enricher: @Damage[3d6[fire]], @Damage[1d6[persistent,acid]]. Never leave damage untyped unless it is physical (bludgeoning/piercing/slashing).");
+  lines.push("    - Weapon base damage die comes from its group; striking runes ADD dice (striking = 2 dice, greater striking = 3, major striking = 4) — encode those as the weapon's die count, not as bonus damage.");
+  lines.push("    - CONDITIONS: use real PF2e condition names. Valued conditions (clumsy, enfeebled, drained, stupefied, frightened, sickened, slowed, stunned) should carry a SMALL value — usually 1, occasionally 2, and only reach 3-4 on high-level/major items. Frightened is typically 1 (2 at most). Common non-valued ones: off-guard (formerly flat-footed), prone, grabbed, immobilized, dazzled, blinded, deafened, fatigued, fascinated, fleeing, confused, paralyzed, quickened, concealed.");
+  lines.push("    - Tie any imposed condition to a saving throw using the level-based DC above, and prefer a graded outcome (success / failure / critical failure changes the value or duration). Typical effect durations are 1 round to 1 minute; lasting conditions should be brief or escapable.");
+  lines.push("    - Do not grant flat untyped bonuses to attack, AC, saves, or skills beyond what items of that level normally give (item bonus +1 around level 2-3, +2 around level 10-11, +3 around level 17+).");
   return lines.join("\n");
 }
 

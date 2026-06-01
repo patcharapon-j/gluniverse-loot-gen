@@ -126,7 +126,12 @@ for worn gear), and encode any dice/DCs as **Foundry enrichers**
 
 To keep those numbers honest, the prompt embeds **canonical PF2e grounding tables**
 — the *DCs by Level* table and the baseline *permanent-item price by level* — so
-the model reads real values instead of guessing. The request also carries the
+the model reads real values instead of guessing. Damage, persistent damage,
+healing, and **conditions** are anchored to the item-**grade** ladder
+(lesser/moderate/greater/major, keyed to item level): grade-appropriate damage
+dice, splash/persistent scaling mirroring alchemical bombs, real condition names
+with small (usually 1-2) values, and save-gated graded outcomes at the level-based
+DC. The request also carries the
 campaign's variant rules: when **Proficiency Without Level** is on, the prompt
 pre-computes the flatter, level-subtracted DC for the item's level (e.g. a level-10
 item is told its DC is **17**, not 27) and reminds the model that PWL changes only
