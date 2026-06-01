@@ -58,10 +58,10 @@ function buildForm(presetPrompt) {
       <textarea name="prompt" rows="4" placeholder="e.g. a sinister relic for the cult's vault — something that whispers to whoever holds it">${esc(presetPrompt)}</textarea></div>
     <div class="gllg-row">
       <div class="gllg-field"><label>How many</label><input type="number" name="count" value="1" min="1" max="8"></div>
-      <div class="gllg-field"><label>Item level <span class="gllg-dim">(blank = party)</span></label><input type="number" name="level" min="0" max="25" placeholder="party level"></div>
+      <div class="gllg-field"><label>Item level <span class="gllg-dim">(blank = AI decides)</span></label><input type="number" name="level" min="0" max="25" placeholder="AI decides"></div>
       <div class="gllg-field"><label>Rarity</label><select name="rarity">${rarity}</select></div>
     </div>
-    <p class="gllg-dim">The LLM authors real PF2e items — correct item type, valid traits, a fair price for their level, and any dice/DCs encoded as clickable Foundry rolls (scaled to your variant rules, e.g. Proficiency Without Level). Each is validated against your PF2e build before it appears, and carries a GM-only icon prompt in its notes for quick art. You review, tweak the destination, reroll, or drop them like any other loot; your campaign context (module settings) is fed in automatically.</p>
+    <p class="gllg-dim">The LLM authors real PF2e items — correct item type, valid traits, a fair price for their level, and any dice/DCs encoded as clickable Foundry rolls (scaled to your variant rules, e.g. Proficiency Without Level). Each is validated against your PF2e build before it appears, and carries a GM-only icon prompt in its notes for quick art. Leave <em>Item level</em> blank to let the AI choose a level that fits each item from your prompt and the party. You review, tweak the destination, reroll, or drop them like any other loot; your campaign context (module settings) is fed in automatically.</p>
   </div>`;
 }
 

@@ -10,8 +10,9 @@
  */
 
 import { MODULE_ID, SETTINGS } from "../const.js";
+import { logLlmCall } from "./llm-log.js";
 
-const REQUEST_TIMEOUT_MS = 30000; // client cap; the sidecar enforces its own, shorter
+const REQUEST_TIMEOUT_MS = 60000; // client cap; the sidecar enforces its own, shorter
 
 /** Flavor is on only when explicitly enabled and a sidecar URL is configured. */
 export function flavorEnabled() {
@@ -87,6 +88,8 @@ async function callSidecar(payload) {
   if (!base) return null;
   const secret = String(safeSetting(SETTINGS.sidecarSecret, "")).trim();
 
+  const t0 = Date.now();
+  const itemCount = Array.isArray(payload.items) ? payload.items.length : 0;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -101,10 +104,16 @@ async function callSidecar(payload) {
     });
     if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
     const data = await res.json();
+    logLlmCall({ kind: "flavor", endpoint: "/flavor", ok: true, status: res.status,
+      ms: Date.now() - t0, detail: `${itemCount} item(s) flavored` });
     // Accept { flavors: {id:…} } or a bare map / array keyed by id.
     if (data?.flavors) return data.flavors;
     if (Array.isArray(data)) return Object.fromEntries(data.filter(d => d?.id).map(d => [d.id, d]));
     return data ?? null;
+  } catch (err) {
+    logLlmCall({ kind: "flavor", endpoint: "/flavor", ok: false, ms: Date.now() - t0,
+      detail: `${itemCount} item(s)`, error: errText(err) });
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -128,4 +137,10 @@ function clean(s) {
 
 function safeSetting(key, fallback) {
   try { return game.settings.get(MODULE_ID, key); } catch { return fallback; }
+}
+
+/** Human-friendly one-liner for the call log (distinguishes a client-side abort). */
+function errText(err) {
+  if (err?.name === "AbortError") return "timed out (client)";
+  return err?.message || String(err ?? "unknown error");
 }

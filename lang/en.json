@@ -58,6 +58,11 @@
   "GLLG.settings.campaignContext.name": "Campaign Context (for the LLM)",
   "GLLG.settings.campaignContext.hint": "A short blurb describing your campaign — setting, tone, region, recurring villains, signature themes. Fed to the LLM as baseline context so generated flavor, provenance, and custom workshop loot fit your world. Leave blank to keep flavor generic. Only used when the LLM sidecar is enabled.",
 
+  "GLLG.llmlog.menuName": "LLM Call Log",
+  "GLLG.llmlog.menuLabel": "View LLM Call Log",
+  "GLLG.llmlog.menuHint": "Open a log of recent calls to the LLM sidecar (flavor and workshop) — status, duration, and any error (timeout, HTTP 502, bad response). Handy for diagnosing why a generation failed.",
+  "GLLG.llmlog.title": "GLUniverse — LLM Call Log",
+
   "GLLG.controls.openAuditor": "Loot Auditor",
   "GLLG.controls.workshop": "Loot Workshop",
   "GLLG.keybindings.workshop": "Open Loot Workshop",

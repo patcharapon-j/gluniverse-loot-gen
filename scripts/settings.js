@@ -1,6 +1,7 @@
 /** Setting registration for GLUniverse — Loot Generator. */
 
 import { MODULE_ID, SETTINGS } from "./const.js";
+import { LlmLogViewer } from "./apps/llm-log.js";
 
 export function registerSettings() {
   const reg = (key, data) => game.settings.register(MODULE_ID, key, data);
@@ -77,6 +78,21 @@ export function registerSettings() {
     name: "GLLG.settings.campaignContext.name",
     hint: "GLLG.settings.campaignContext.hint",
     scope: "world", config: true, type: String, default: ""
+  });
+
+  // --- LLM call log (hidden; viewed through the menu below) ---
+  reg(SETTINGS.llmLog, {
+    scope: "client", config: false, type: Array, default: []
+  });
+
+  // A button in the module's settings section that opens the LLM call-log viewer.
+  game.settings.registerMenu(MODULE_ID, "llmLogMenu", {
+    name: "GLLG.llmlog.menuName",
+    label: "GLLG.llmlog.menuLabel",
+    hint: "GLLG.llmlog.menuHint",
+    icon: "fa-solid fa-list-timeline",
+    type: LlmLogViewer,
+    restricted: true
   });
 
   // --- Persisted data (hidden) ---

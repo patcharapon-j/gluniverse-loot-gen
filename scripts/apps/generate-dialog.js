@@ -78,11 +78,29 @@ function buildForm(presetContext) {
     <div class="gllg-field" data-for="all"><label>Biome</label>${biome}</div>
     <div class="gllg-field" data-for="all"><label>Faction</label>${faction}</div>
     <div class="gllg-field" data-for="all"><label>Additional context <span class="gllg-dim">(optional — this generation only, fed to the LLM)</span></label><textarea name="extraContext" rows="2" placeholder="e.g. recovered from the drowned shrine of Gozreh, after the storm"></textarea></div>
+    ${llmToggle()}
     <div class="gllg-row">
       <div class="gllg-field" data-for="all"><label>Party level <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="level" min="1" max="20" placeholder="auto"></div>
       <div class="gllg-field" data-for="${BUDGET}"><label>Party size <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="size" min="1" max="8" placeholder="auto"></div>
     </div>
     <p class="gllg-dim">Leave level/size blank to read them from the resolved party. Combat reads traits from your selected (defeated) tokens.</p>
+  </div>`;
+}
+
+/**
+ * Optional LLM-flavor toggle. Defaults on when the sidecar is configured (so the
+ * GM keeps flavor), but lets them switch it off for a quick, LLM-free roll. When
+ * no sidecar is configured the toggle is disabled with a hint, since there is
+ * nothing to call.
+ */
+function llmToggle() {
+  const on = flavorEnabled();
+  const hint = on
+    ? "(uncheck for a quick roll — no LLM call)"
+    : "(enable the LLM sidecar in module settings to use)";
+  return `<div class="gllg-field gllg-llm-toggle" data-for="all">
+    <label class="gllg-check"><input type="checkbox" name="useLlm" ${on ? "checked" : "disabled"}>
+      <span>Use LLM flavor &amp; provenance <span class="gllg-dim">${hint}</span></span></label>
   </div>`;
 }
 
@@ -101,6 +119,7 @@ function readForm(form) {
     biome: get("biome") || "",
     faction: get("faction") || "",
     extraContext: get("extraContext") || "",
+    useLlm: !!form?.elements?.["useLlm"]?.checked,
     level: get("level"),
     size: get("size")
   };
@@ -161,14 +180,14 @@ async function runGeneration(r) {
   }
 
   const proposal = await proposeLoot(request);
-  // LLM flavor can take a few seconds — show a working card while it runs (only
-  // when flavor is actually enabled; the cascade itself is instant).
-  if (flavorEnabled()) {
+  // LLM flavor can take a few seconds — show a working card while it runs. Only
+  // when the GM kept the toggle on AND a sidecar is configured (the cascade
+  // itself is instant); unchecking it gives a quick, LLM-free roll.
+  const useLlm = !!r.useLlm && flavorEnabled();
+  if (useLlm) {
     const progress = await beginProgress({ title: "Adding LLM flavor…", detail: proposal.label || "Loot proposal" });
     try { await decorateProposal(proposal); }   // optional LLM flavor; graceful if it fails
     finally { await endProgress(progress); }
-  } else {
-    await decorateProposal(proposal); // no-op when disabled
   }
   await postReviewCard(proposal);
   ui.notifications?.info(`GLLG: loot proposal posted to chat (${proposal.itemCount} items, ${Math.round(proposal.totalGp)} gp).`);

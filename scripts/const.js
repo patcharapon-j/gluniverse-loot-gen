@@ -30,6 +30,7 @@ export const SETTINGS = {
   sidecarUrl: "sidecarUrl",               // String (world): base URL of the claude -p sidecar (same-origin path or full URL)
   sidecarSecret: "sidecarSecret",         // String (world, GM-only): shared secret sent as a header
   campaignContext: "campaignContext",     // String (world): GM's campaign blurb fed to the LLM as baseline flavor context
+  llmLog: "llmLog",                       // Array (client, hidden): recent LLM sidecar calls for the diagnostics viewer
 
   // --- Auditor window (client) ---
   auditorPosition: "auditorPosition",     // Object (client): {left,top}
