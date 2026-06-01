@@ -253,7 +253,7 @@ function buildSystemForType(spec, description) {
     quantity: 1,
     bulk: { value: bulkToNumber(spec.bulk) },
     traits: {
-      value: withInferredTraits(spec.type, validTraitsFor(spec.type, spec.traits)),
+      value: withInferredTraits(spec.type, validTraitsFor(spec.type, spec.traits), spec.name),
       rarity: validRarity(spec.rarity), otherTags: []
     }
   };
@@ -262,7 +262,8 @@ function buildSystemForType(spec, description) {
     case "weapon":
       return {
         ...base,
-        category: validWeaponCategory(spec.category), group: validWeaponGroup(spec.group), baseItem: null,
+        category: validWeaponCategory(spec.category), group: validWeaponGroup(spec.group),
+        baseItem: validWeaponBaseItem(spec),
         damage: {
           dice: 1,
           die: validDamageDie(spec.damageDie) ?? "d6",
@@ -278,7 +279,8 @@ function buildSystemForType(spec, description) {
       // The system fixes armor usage to the armor slot — don't author it.
       return {
         ...base,
-        category: validArmorCategory(spec.category), group: validArmorGroup(spec.group), baseItem: null,
+        category: validArmorCategory(spec.category), group: validArmorGroup(spec.group),
+        baseItem: validArmorBaseItem(spec),
         acBonus: 1, strength: null, dexCap: 4, checkPenalty: 0, speedPenalty: 0,
         runes: { potency: 0, resilient: 0, property: [] }
       };
@@ -331,6 +333,7 @@ function sanitizeSpec(raw) {
     traits: Array.isArray(raw?.traits) ? raw.traits : [],
     category: String(raw?.category ?? "").slice(0, 40),
     group: String(raw?.group ?? raw?.weaponGroup ?? raw?.armorGroup ?? "").slice(0, 40),
+    baseItem: String(raw?.baseItem ?? raw?.base ?? raw?.baseType ?? "").slice(0, 60),
     damageType: raw?.damageType ?? raw?.damagetype ?? null,
     damageDie: raw?.damageDie ?? raw?.die ?? null,
     description: cleanText(raw?.description, 1500),
@@ -399,20 +402,163 @@ function validTraitsFor(type, traits) {
   return [...new Set(out)].slice(0, 16);
 }
 
-/**
- * Guarantee an item carries appropriate baseline traits. A tradition or school
- * trait strictly implies "magical", so add it when the model named one but
- * forgot the umbrella trait — unless the item is alchemical (which is the
- * non-magical counterpart). Treasure is never auto-tagged magical.
- */
-function withInferredTraits(type, traits) {
-  if (type === "treasure") return traits;
-  const has = new Set(traits);
-  const magicEvident = traits.some(t => TRADITION_TRAITS.has(t) || MAGIC_SCHOOL_TRAITS.has(t));
-  if (magicEvident && !has.has("magical") && !has.has("alchemical")) {
-    return [...traits, "magical"];
+/* Canonical PF2e combat traits a base weapon carries, keyed by base-weapon name.
+   Used ONLY as a safety net: a custom weapon can have whatever traits the model
+   chose, so we never override or remove those — we infer from the name purely to
+   backfill when the model returned a weapon with NO combat trait at all, so a
+   forged weapon is never trait-less. Sourced from the Core Rulebook weapon tables. */
+const WEAPON_BASE_TRAITS = {
+  dagger: ["agile", "finesse", "thrown-10", "versatile-s"],
+  "main-gauche": ["agile", "disarm", "finesse", "versatile-s"],
+  kukri: ["agile", "finesse", "trip"],
+  sickle: ["agile", "finesse", "trip"],
+  rapier: ["deadly-d8", "disarm", "finesse"],
+  "short-sword": ["agile", "finesse", "versatile-s"],
+  shortsword: ["agile", "finesse", "versatile-s"],
+  longsword: ["versatile-p"],
+  "bastard-sword": ["two-hand-d12"],
+  greatsword: ["versatile-p"],
+  scimitar: ["forceful", "sweep"],
+  falchion: ["forceful", "sweep"],
+  katana: ["deadly-d8", "two-hand-d10", "versatile-p"],
+  glaive: ["deadly-d8", "forceful", "reach"],
+  halberd: ["reach", "versatile-s"],
+  scythe: ["deadly-d10", "trip"],
+  longspear: ["reach"],
+  spear: ["thrown-20"],
+  shortspear: ["thrown-20"],
+  trident: ["thrown-20"],
+  battleaxe: ["sweep"],
+  "battle-axe": ["sweep"],
+  greataxe: ["sweep"],
+  "hand-axe": ["agile", "sweep", "thrown-10"],
+  handaxe: ["agile", "sweep", "thrown-10"],
+  hatchet: ["agile", "sweep", "thrown-10"],
+  warhammer: ["shove"],
+  "war-hammer": ["shove"],
+  "light-hammer": ["agile", "thrown-20"],
+  maul: ["shove"],
+  club: ["thrown-10"],
+  greatclub: ["backswing", "shove"],
+  mace: ["shove"],
+  morningstar: ["versatile-p"],
+  flail: ["disarm", "sweep", "trip"],
+  "war-flail": ["disarm", "sweep", "trip"],
+  whip: ["disarm", "finesse", "nonlethal", "reach", "trip"],
+  pick: ["fatal-d10"],
+  warpick: ["fatal-d10"],
+  "war-pick": ["fatal-d10"],
+  staff: ["two-hand-d8"],
+  quarterstaff: ["two-hand-d8"],
+  longbow: ["deadly-d10", "propulsive", "volley-30"],
+  "composite-longbow": ["deadly-d10", "propulsive", "volley-30"],
+  shortbow: ["deadly-d10", "propulsive"],
+  "composite-shortbow": ["deadly-d10", "propulsive"],
+  crossbow: [],
+  "hand-crossbow": ["agile"],
+  sling: ["propulsive"],
+  dart: ["agile", "thrown-20"],
+  javelin: ["thrown-30"]
+};
+// Longest keys first so "composite-longbow" wins over "longbow", etc.
+const WEAPON_BASE_KEYS = Object.keys(WEAPON_BASE_TRAITS).sort((a, b) => b.length - a.length);
+
+/* Prefix set used to detect whether the model already supplied any weapon-specific
+   (combat) trait, so we only infer when it gave none. */
+const COMBAT_TRAIT_PREFIXES = [
+  "agile", "finesse", "reach", "thrown", "versatile", "deadly", "fatal", "two-hand",
+  "sweep", "forceful", "shove", "trip", "disarm", "parry", "propulsive", "volley",
+  "backswing", "nonlethal", "grapple", "free-hand", "modular", "jousting", "brace",
+  "razing", "concussive", "scatter", "kickback", "repeating", "capacity", "double-barrel",
+  "fatal-aim", "tethered", "twin", "monk", "combination"
+];
+const isCombatTrait = slug =>
+  COMBAT_TRAIT_PREFIXES.some(p => slug === p || slug.startsWith(p + "-"));
+
+/** Match an item name to one of the supplied base-item keys (longest first). */
+function matchBaseKey(name, keys) {
+  const slug = normalizeSlug(name);
+  if (!slug) return null;
+  for (const key of keys) {
+    const hit = key.includes("-")
+      ? (slug === key || slug.startsWith(key + "-") || slug.includes("-" + key) || slug.endsWith(key))
+      : slug.split("-").includes(key);
+    if (hit) return key;
   }
-  return traits;
+  return null;
+}
+
+/** Infer canonical combat traits from a weapon's name (base-weapon lookup). */
+function inferWeaponTraits(name) {
+  const key = matchBaseKey(name, WEAPON_BASE_KEYS);
+  return key ? WEAPON_BASE_TRAITS[key] : [];
+}
+
+/* Common base ARMORS, longest key first. Mapping a forged armor to a real base
+   armor lets it inherit proper PF2e mechanics, just like weapons. */
+const ARMOR_BASE_KEYS = [
+  "explorers-clothing", "studded-leather", "chain-shirt", "chain-mail",
+  "scale-mail", "splint-mail", "half-plate", "full-plate", "breastplate",
+  "padded", "leather", "hide", "plate", "chainmail"
+];
+// Name token -> canonical PF2e base slug, only where they differ. Other names
+// are tried as-is (and de-hyphenated) and kept only if the live CONFIG has them.
+const BASE_ITEM_REMAP = {
+  // weapons
+  "hand-axe": "hatchet", handaxe: "hatchet",
+  "war-pick": "pick", warpick: "pick",
+  // armor
+  plate: "full-plate", chainmail: "chain-mail"
+};
+
+/**
+ * Resolve a real PF2e base-item slug for a weapon/armor, so it isn't a rootless
+ * custom item (the GM asked that forged gear set a proper base unless truly
+ * novel). The model's own baseItem wins when valid; otherwise we infer from the
+ * item's NAME. Everything is checked against the live CONFIG pool, so we never
+ * write an unknown base — a genuinely novel item simply keeps `null`.
+ */
+function resolveBaseItem(given, name, baseKeys, poolObj) {
+  const pool = new Set(keysOf(poolObj));
+  const g = normalizeSlug(given);
+  if (g && (!pool.size || pool.has(g))) return g;
+  const key = matchBaseKey(name, baseKeys);
+  if (!key) return null;
+  const candidates = [BASE_ITEM_REMAP[key], key, key.replace(/-/g, "")].filter(Boolean);
+  if (!pool.size) return candidates[0]; // not under Foundry / config absent → trust the guess
+  for (const c of candidates) if (pool.has(c)) return c;
+  return null;
+}
+function validWeaponBaseItem(spec) {
+  return resolveBaseItem(spec.baseItem, spec.name, WEAPON_BASE_KEYS, cfg().baseWeapons) ?? null;
+}
+function validArmorBaseItem(spec) {
+  return resolveBaseItem(spec.baseItem, spec.name, ARMOR_BASE_KEYS, cfg().baseArmors) ?? null;
+}
+
+/**
+ * Guarantee an item carries appropriate baseline traits.
+ *  - A tradition or school trait strictly implies "magical", so add it when the
+ *    model named one but forgot the umbrella trait — unless the item is alchemical
+ *    (the non-magical counterpart). Treasure is never auto-tagged magical.
+ *  - WEAPONS: if the model returned no weapon-specific combat trait, infer the
+ *    canonical ones from the weapon's name so a forged weapon is never trait-less.
+ */
+function withInferredTraits(type, traits, name = "") {
+  if (type === "treasure") return traits;
+  const out = [...traits];
+  const has = new Set(out);
+  const magicEvident = out.some(t => TRADITION_TRAITS.has(t) || MAGIC_SCHOOL_TRAITS.has(t));
+  if (magicEvident && !has.has("magical") && !has.has("alchemical")) {
+    out.push("magical");
+    has.add("magical");
+  }
+  if (type === "weapon" && !out.some(isCombatTrait)) {
+    for (const t of inferWeaponTraits(name)) {
+      if (!has.has(t)) { out.push(t); has.add(t); }
+    }
+  }
+  return out;
 }
 
 function validRarity(r) {

@@ -116,13 +116,22 @@ The same sidecar also backs the **Loot Workshop** — the GM's `/grill-me` comma
 picks, the workshop has the LLM **author bespoke loot directly**: the module
 POSTs a free-text request and the model returns a JSON array of item specs
 (name, type, level, rarity, price, traits, usage, description, flavor,
-provenance — plus `category`/`group` for weapons & armor and optional weapon
-damageType/die). The model is told to pick the **correct PF2e item type**
+provenance — plus `category`/`group`/`baseItem` for weapons & armor and optional
+weapon damageType/die). The model is told to pick the **correct PF2e item type**
 (weapon / armor / consumable / treasure / equipment), give each item
-**appropriate traits** (`magical` + a tradition for magic items, combat traits +
-category/group for weapons, armor traits + category/group for armor, `invested`
-for worn gear), and encode any dice/DCs as **Foundry enrichers**
-(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
+**appropriate traits**, set a real **`baseItem`** (e.g. `longsword`, `chain-shirt`)
+so forged weapons/armor inherit proper mechanics, and encode any dice/DCs as
+**Foundry enrichers** (`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
+
+To get traits right, the prompt embeds a full **PF2e trait dictionary**
+([`pf2e-traits.mjs`](pf2e-traits.mjs)) — every weapon, armor, general, magic, and
+energy trait with a one-line meaning and the exact slug format for parameterized
+ones (`thrown-20`, `versatile-s`, `deadly-d8`, `two-hand-d10`). It's remaster-current
+(spell schools listed only as legacy; vitality/void and holy/unholy energy). On the
+module side, if a weapon comes back with no combat trait, the canonical traits are
+**inferred from its base-weapon name** as a safety net (never overriding traits the
+model did choose), and weapons/armor get a validated `baseItem` so they aren't
+rootless custom items.
 
 To keep those numbers honest, the prompt embeds **canonical PF2e grounding tables**
 — the *DCs by Level* table and the baseline *permanent-item price by level* — so
