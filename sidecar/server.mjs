@@ -352,6 +352,9 @@ function parseWorkshopItems(stdout) {
 }
 
 function clampInt(v, lo, hi, dflt) {
+  // null / undefined / "" must fall through to the default — NOT Number(null)===0,
+  // which would force a blank "AI decides" level to a bogus level 0.
+  if (v === null || v === undefined || v === "") return dflt;
   const n = Math.trunc(Number(v));
   if (!Number.isFinite(n)) return dflt;
   return Math.max(lo, Math.min(hi, n));
