@@ -14,6 +14,8 @@ import { decorateProposal, flavorEnabled } from "./loot/decorator.js";
 import { clearItemIndex } from "./loot/item-selector.js";
 import { postReviewCard, bindReviewCardActions } from "./apps/review-card.js";
 import { openGenerateDialog } from "./apps/generate-dialog.js";
+import { openWorkshopDialog } from "./apps/workshop-dialog.js";
+import { runWorkshop, workshopEnabled } from "./loot/workshop.js";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -25,7 +27,9 @@ Hooks.once("init", () => {
     // Loot model (build #2) — request builders.
     loot: { buildRequest, combatRequest, explorationRequest, dungeonRequest, questRequest },
     // Generation pipeline (build #3+) — cascade → decorate → review card → materialize.
-    generate: { openGenerateDialog, proposeLoot, decorateProposal, flavorEnabled, postReviewCard, materialize, clearItemIndex }
+    generate: { openGenerateDialog, proposeLoot, decorateProposal, flavorEnabled, postReviewCard, materialize, clearItemIndex },
+    // Loot Workshop (/grill-me) — LLM-authored custom loot.
+    workshop: { openWorkshopDialog, runWorkshop, workshopEnabled }
   };
 });
 
@@ -34,6 +38,19 @@ Hooks.once("ready", () => {
     console.warn(`${MODULE_ID} | Pathfinder 2e system not active — the Loot Auditor is idle.`);
   }
   bindReviewCardActions();
+});
+
+/* The /grill-me chat command opens the Loot Workshop (GM-only). Returning false
+   stops the slash text from posting to chat. Anything else is left for Foundry. */
+Hooks.on("chatMessage", (_chatLog, message, _chatData) => {
+  const m = /^\/grill-?me\b\s*([\s\S]*)$/i.exec(String(message ?? "").trim());
+  if (!m) return true;
+  if (!game.user?.isGM) {
+    ui.notifications?.warn("GLLG: only the GM can open the Loot Workshop.");
+    return false;
+  }
+  openWorkshopDialog(m[1]?.trim() || "");
+  return false;
 });
 
 /* The auditor reads live sheets, so any gear/level/coin change should repaint it.
@@ -66,6 +83,13 @@ Hooks.on("getSceneControlButtons", controls => {
     button: true,
     onChange: () => openGenerateDialog()
   };
+  group.tools["gllg-workshop"] = {
+    name: "gllg-workshop",
+    title: "GLLG.controls.workshop",
+    icon: "fa-solid fa-hammer",
+    button: true,
+    onChange: () => openWorkshopDialog()
+  };
 });
 
 function registerKeybindings() {
@@ -79,6 +103,12 @@ function registerKeybindings() {
     name: "GLLG.keybindings.generateLoot",
     editable: [{ key: "KeyG", modifiers: ["Alt"] }],
     onDown: () => { if (game.user?.isGM) openGenerateDialog(); return true; },
+    restricted: true
+  });
+  game.keybindings.register(MODULE_ID, "workshop", {
+    name: "GLLG.keybindings.workshop",
+    editable: [{ key: "KeyW", modifiers: ["Alt"] }],
+    onDown: () => { if (game.user?.isGM) openWorkshopDialog(); return true; },
     restricted: true
   });
 }

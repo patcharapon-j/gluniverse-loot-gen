@@ -75,6 +75,7 @@ function buildForm(presetContext) {
     <div class="gllg-field" data-for="single"><label>Item level <span class="gllg-dim">(blank = party level)</span></label><input type="number" name="itemLevel" min="0" max="25" placeholder="party level"></div>
     <div class="gllg-field" data-for="all"><label>Biome</label>${biome}</div>
     <div class="gllg-field" data-for="all"><label>Faction</label>${faction}</div>
+    <div class="gllg-field" data-for="all"><label>Additional context <span class="gllg-dim">(optional — this generation only, fed to the LLM)</span></label><textarea name="extraContext" rows="2" placeholder="e.g. recovered from the drowned shrine of Gozreh, after the storm"></textarea></div>
     <div class="gllg-row">
       <div class="gllg-field" data-for="all"><label>Party level <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="level" min="1" max="20" placeholder="auto"></div>
       <div class="gllg-field" data-for="${BUDGET}"><label>Party size <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="size" min="1" max="8" placeholder="auto"></div>
@@ -97,6 +98,7 @@ function readForm(form) {
     itemLevel: get("itemLevel"),
     biome: get("biome") || "",
     faction: get("faction") || "",
+    extraContext: get("extraContext") || "",
     level: get("level"),
     size: get("size")
   };
@@ -146,6 +148,11 @@ async function runGeneration(r) {
   let request;
   try { request = buildRequest(r.context, opts); }
   catch (e) { return ui.notifications?.error(`GLLG: ${e.message}`); }
+
+  // Per-generation context note rides in meta (plain object → survives the flag)
+  // so the decorator can hand it to the LLM alongside the world campaign blurb.
+  const note = String(r.extraContext ?? "").trim();
+  if (note) request.meta.extraContext = note.slice(0, 600);
 
   if (!request.budgetGp && r.context !== CONTEXT.SINGLE) {
     ui.notifications?.warn("GLLG: computed budget is 0 — check party level and (for combat) your token selection.");

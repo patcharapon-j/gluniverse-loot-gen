@@ -104,6 +104,14 @@ async function doApprove(message, proposal) {
 }
 
 async function doReroll(message, proposal) {
+  // Workshop proposals re-ask the LLM for fresh custom loot; everything else
+  // re-runs the cascade against the same request.
+  if (proposal.workshop) {
+    const { rerunWorkshop } = await import("../loot/workshop.js");
+    const next = await rerunWorkshop(proposal);
+    if (!next) return; // notified inside
+    return message.update({ content: renderCard(next), flags: { [MODULE_ID]: { proposal: next } } });
+  }
   const next = await proposeLoot(proposal.request);
   await decorateProposal(next); // re-flavor the fresh picks (no-op if disabled)
   await message.update({ content: renderCard(next), flags: { [MODULE_ID]: { proposal: next } } });
@@ -182,7 +190,7 @@ function renderCard(p) {
     <footer class="gllg-card-actions">
       <button type="button" data-action="approve" class="gllg-btn gllg-go"><i class="fa-solid fa-check"></i> Approve</button>
       <button type="button" data-action="reroll" class="gllg-btn"><i class="fa-solid fa-dice"></i> Reroll all</button>
-      ${flavorEnabled() ? `<button type="button" data-action="reflavor" class="gllg-btn" title="Re-request LLM flavor"><i class="fa-solid fa-feather"></i> Reflavor</button>` : ""}
+      ${flavorEnabled() && !p.workshop ? `<button type="button" data-action="reflavor" class="gllg-btn" title="Re-request LLM flavor"><i class="fa-solid fa-feather"></i> Reflavor</button>` : ""}
       <button type="button" data-action="cancel" class="gllg-btn gllg-ghost"><i class="fa-solid fa-xmark"></i> Cancel</button>
     </footer>
   </div>`;
@@ -243,8 +251,9 @@ function renderItem(parcel, it) {
   const heir = it.heirloom
     ? `<div class="gllg-item-heir"><i class="fa-solid fa-wand-magic-sparkles"></i> awakens in ${esc(it.forItemName || "signature item")}</div>`
     : "";
-  // Swapping a heirloom would replace it with an ordinary drop — disallow it.
-  const swap = it.heirloom ? ""
+  // Swapping a heirloom would replace it with an ordinary drop, and a custom
+  // workshop item has no compendium equivalent to swap to — disallow both.
+  const swap = (it.heirloom || it.custom) ? ""
     : `<button type="button" class="gllg-mini" data-action="swap" data-parcel-id="${esc(parcel.id)}" data-uuid="${esc(it.uuid)}" title="Swap for another"><i class="fa-solid fa-rotate"></i></button>`;
   return `<div class="gllg-item${it.heirloom ? " gllg-is-heir" : ""}">
     <img class="gllg-item-img" src="${esc(it.img || "icons/svg/item-bag.svg")}" alt="">

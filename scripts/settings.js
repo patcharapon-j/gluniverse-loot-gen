@@ -67,6 +67,12 @@ export function registerSettings() {
     scope: "world", config: true, type: String, default: ""
   });
 
+  reg(SETTINGS.campaignContext, {
+    name: "GLLG.settings.campaignContext.name",
+    hint: "GLLG.settings.campaignContext.hint",
+    scope: "world", config: true, type: String, default: ""
+  });
+
   // --- Persisted data (hidden) ---
   reg(SETTINGS.ledger, {
     scope: "world", config: false, type: Object, default: {}

@@ -30,6 +30,7 @@ export async function decorateProposal(proposal, { force = false } = {}) {
   const targets = [];
   proposal.parcels?.forEach((parcel, pi) => {
     parcel.items?.forEach((pick, ii) => {
+      if (pick.custom) return;            // workshop items author their own flavor
       if (!force && pick.flavor) return;
       const id = `p${pi}_${ii}`;
       targets.push({ id, pick });
@@ -41,6 +42,8 @@ export async function decorateProposal(proposal, { force = false } = {}) {
     context: proposal.context,
     label: proposal.label,
     level: proposal.level,
+    campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
+    notes: String(proposal.request?.meta?.extraContext ?? "").trim(),
     tags: pickTags(proposal.request?.tags),
     items: targets.map(({ id, pick }) => ({
       id,
