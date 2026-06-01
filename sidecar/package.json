@@ -1,0 +1,12 @@
+{
+  "name": "gllg-flavor-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local claude -p sidecar for GLUniverse Loot Generator — generates item provenance flavor. Bind to 127.0.0.1 behind nginx.",
+  "main": "server.mjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

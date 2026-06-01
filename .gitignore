@@ -1,0 +1,17 @@
+# Build artifacts produced by the release workflow
+module.zip
+release-notes.md
+
+# Node (sidecar has no deps, but guard against local installs)
+node_modules/
+npm-debug.log*
+
+# Claude Code local tooling/config
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

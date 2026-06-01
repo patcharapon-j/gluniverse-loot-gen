@@ -1,0 +1,85 @@
+{
+  "GLLG.axis.attack": "Attack",
+  "GLLG.axis.striking": "Striking",
+  "GLLG.axis.defense": "Armor",
+  "GLLG.axis.resilient": "Resilient",
+  "GLLG.axis.perception": "Perception",
+  "GLLG.axis.skills": "Skills",
+
+  "GLLG.audit.title": "Loot Auditor — Gear Health Check",
+  "GLLG.audit.defaultPartyName": "The Party",
+  "GLLG.audit.notPF2e": "The Loot Auditor requires the Pathfinder 2e system.",
+  "GLLG.audit.noParty": "No party found. Add characters to a Party actor, or assign characters to players.",
+  "GLLG.audit.avgLevel": "Avg Lv",
+  "GLLG.audit.level": "Level",
+  "GLLG.audit.refresh": "Re-audit",
+  "GLLG.audit.settings": "Settings",
+  "GLLG.audit.openSheet": "Open character sheet",
+  "GLLG.audit.partyWealth": "Party Wealth",
+  "GLLG.audit.wealth": "Wealth",
+  "GLLG.audit.abpNote": "Automatic Bonus Progression is on — fundamentals are expected to come from the character, not runes.",
+  "GLLG.audit.estimateNote": "Fundamentals are audited against the ABP curve. Wealth is an estimate vs. expected level wealth — coins spent on consumables and services lower the live total, so read drift as directional.",
+  "GLLG.audit.missing": "Missing {axis} ({tier})",
+  "GLLG.audit.behindAxis": "{axis} behind: {have}, expected {need}",
+
+  "GLLG.settings.shoppingAccess.name": "Shopping Access",
+  "GLLG.settings.shoppingAccess.hint": "How freely the party can buy/craft gear. Sets the baseline core-vs-unusual loot ratio (AoN guidance).",
+  "GLLG.settings.shoppingAccess.free": "Free markets (~50% core)",
+  "GLLG.settings.shoppingAccess.limited": "Limited access (~75% core)",
+  "GLLG.settings.shoppingAccess.none": "No shops (~100% core)",
+
+  "GLLG.settings.variantABP.name": "Automatic Bonus Progression",
+  "GLLG.settings.variantABP.hint": "Enable if this campaign uses the ABP variant (fundamental bonuses come from the character, not runes). Changes how the auditor interprets fundamentals.",
+
+  "GLLG.settings.driftTolerance.name": "Wealth Drift Tolerance (%)",
+  "GLLG.settings.driftTolerance.hint": "How far a PC's wealth may stray from the expected curve before the auditor flags them ahead or behind.",
+
+  "GLLG.settings.partyActor.name": "Party Actor ID (optional)",
+  "GLLG.settings.partyActor.hint": "Force the auditor to use a specific Party actor by its id. Leave blank to auto-detect.",
+
+  "GLLG.settings.heirloomMode.name": "Heirloom Mode (runes awaken in place)",
+  "GLLG.settings.heirloomMode.hint": "When on, fundamental-rune rewards climb within each PC's signature weapon instead of dropping as new gear — same RAW price, so budget and the auditor are unaffected. The reward becomes an in-place edit to the held weapon (a story-beat 'awakening').",
+
+  "GLLG.settings.heirloomArmor.name": "Heirloom Mode — include armor",
+  "GLLG.settings.heirloomArmor.hint": "Also awaken armor fundamentals (potency/resilient) within the PC's worn armor. Off = weapons only.",
+
+  "GLLG.settings.llmFlavor.name": "LLM Flavor & Provenance",
+  "GLLG.settings.llmFlavor.hint": "When on, each generated hoard makes one call to the claude -p sidecar to add provenance flavor text to its items. Purely cosmetic — prices and rules never change. Any failure drops the loot with plain rules-text (never blocks generation). Requires the sidecar URL below.",
+
+  "GLLG.settings.sidecarUrl.name": "Flavor Sidecar URL",
+  "GLLG.settings.sidecarUrl.hint": "Base URL of the claude -p sidecar. Use a same-origin path reverse-proxied through your Foundry nginx (e.g. /gllg-sidecar) so it stays behind HTTPS and is never internet-facing.",
+
+  "GLLG.settings.sidecarSecret.name": "Flavor Sidecar Secret",
+  "GLLG.settings.sidecarSecret.hint": "Shared secret sent as the x-gllg-secret header. Must match the GLLG_SECRET the sidecar was started with. GM-only.",
+
+  "GLLG.controls.openAuditor": "Loot Auditor",
+  "GLLG.controls.generateLoot": "Generate Loot",
+  "GLLG.keybindings.toggleAuditor": "Toggle Loot Auditor",
+  "GLLG.keybindings.generateLoot": "Generate Loot",
+
+  "GLLG.biome.arctic": "Arctic",
+  "GLLG.biome.coast": "Coast",
+  "GLLG.biome.desert": "Desert",
+  "GLLG.biome.forest": "Forest",
+  "GLLG.biome.swamp": "Swamp",
+  "GLLG.biome.mountain": "Mountain",
+  "GLLG.biome.plains": "Plains",
+  "GLLG.biome.underground": "Underground",
+  "GLLG.biome.darklands": "Darklands",
+  "GLLG.biome.urban": "Urban",
+  "GLLG.biome.planar": "Planar",
+  "GLLG.biome.aquatic": "Aquatic",
+
+  "GLLG.faction.cult": "Cult",
+  "GLLG.faction.thievesGuild": "Thieves' Guild",
+  "GLLG.faction.knightlyOrder": "Knightly Order",
+  "GLLG.faction.merchantHouse": "Merchant House",
+  "GLLG.faction.arcaneAcademy": "Arcane Academy",
+  "GLLG.faction.druidicCircle": "Druidic Circle",
+  "GLLG.faction.undeadLegion": "Undead Legion",
+  "GLLG.faction.fiendishPact": "Fiendish Pact",
+  "GLLG.faction.giantClan": "Giant Clan",
+  "GLLG.faction.pirateCrew": "Pirate Crew",
+  "GLLG.faction.royalCourt": "Royal Court",
+  "GLLG.faction.wilderness": "Wilderness"
+}

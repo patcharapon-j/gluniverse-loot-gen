@@ -1,0 +1,100 @@
+name: Release
+
+# Manual-trigger release. Actions tab → Release → "Run workflow".
+# Produces a GitHub Release with module.json + module.zip as assets, so the
+# "latest" manifest link resolves to it and others can install via manifest URL:
+#   https://github.com/<owner>/<repo>/releases/latest/download/module.json
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.1.1 (blank = use module.json's current version)"
+        required: false
+        type: string
+      prerelease:
+        description: "Mark this release as a pre-release"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          INPUT="${{ inputs.version }}"
+          if [ -n "$INPUT" ]; then
+            VERSION="$INPUT"
+          else
+            VERSION="$(jq -r '.version' module.json)"
+          fi
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "::error::Could not resolve a version (no input and module.json has none)."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"   >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Stamp module.json (version + manifest/download URLs)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          BASE="https://github.com/${REPO}"
+          tmp="$(mktemp)"
+          jq \
+            --arg v "$VERSION" \
+            --arg url "$BASE" \
+            --arg manifest "$BASE/releases/latest/download/module.json" \
+            --arg download "$BASE/releases/download/v$VERSION/module.zip" \
+            '.version = $v | .url = $url | .manifest = $manifest | .download = $download' \
+            module.json > "$tmp" && mv "$tmp" module.json
+          echo "----- stamped module.json -----"
+          cat module.json
+
+      - name: Build module.zip
+        run: |
+          # module.json must sit at the zip root for Foundry to install it.
+          zip -r module.zip . \
+            -x ".git/*" ".github/*" "module.zip" "*.DS_Store"
+          echo "----- zip contents -----"
+          unzip -l module.zip
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          # Replace any existing release/tag for this version so re-runs are idempotent.
+          gh release delete "$TAG" --yes || true
+          git push origin ":refs/tags/$TAG" || true
+          git tag -f "$TAG"
+          git push origin "refs/tags/$TAG"
+
+          MANIFEST="https://github.com/${{ github.repository }}/releases/latest/download/module.json"
+          {
+            echo "Automated release **$TAG**."
+            echo ""
+            echo "Install / update in Foundry via the manifest link:"
+            echo ""
+            echo "\`$MANIFEST\`"
+          } > release-notes.md
+
+          FLAGS=""
+          if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
+
+          gh release create "$TAG" module.json module.zip \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            $FLAGS

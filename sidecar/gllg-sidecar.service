@@ -1,0 +1,41 @@
+# systemd unit for the GLLG flavor sidecar (DESIGN §14).
+# Install:
+#   sudo cp gllg-sidecar.service /etc/systemd/system/
+#   sudo systemctl edit gllg-sidecar      # set GLLG_SECRET + paths in an override, OR edit below
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gllg-sidecar
+#
+# Adjust User/WorkingDirectory/ExecStart paths and the Environment lines to match
+# your droplet. The secret should match the module's "Flavor Sidecar Secret".
+
+[Unit]
+Description=GLUniverse Loot Generator — claude -p flavor sidecar
+After=network.target
+
+[Service]
+Type=simple
+# Run as the same user whose ~/.claude holds the Claude Code auth that `claude` uses.
+User=foundry
+WorkingDirectory=/opt/gllg-sidecar
+ExecStart=/usr/bin/node /opt/gllg-sidecar/server.mjs
+Restart=on-failure
+RestartSec=3
+
+# --- configuration (override with `systemctl edit gllg-sidecar`) ---
+Environment=GLLG_HOST=127.0.0.1
+Environment=GLLG_PORT=7878
+Environment=GLLG_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_STRING
+Environment=GLLG_CLAUDE_BIN=claude
+# Environment=GLLG_MODEL=claude-sonnet-4-6
+Environment=GLLG_TIMEOUT_MS=25000
+
+# --- hardening: flavor text only, never loot/actor/shell ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# `claude` needs to read its auth/config under the user's home; if ProtectHome
+# blocks it, switch to: ProtectHome=tmpfs + BindReadOnlyPaths=/home/foundry/.claude
+ReadWritePaths=/opt/gllg-sidecar
+
+[Install]
+WantedBy=multi-user.target

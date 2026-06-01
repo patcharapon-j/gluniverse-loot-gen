@@ -1,0 +1,407 @@
+/* ============================================================
+   GLUniverse — Loot Generator : Auditor styles
+   Shares the "Arcane Glass" design language of GLUniverse —
+   Clocks & Tracker: Oxanium display face, layered glass panels,
+   soft glow halos, spring-eased motion, tabular numerals.
+   Everything is scoped to the auditor window (#gllg-auditor).
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&display=swap');
+
+#gllg-auditor{
+  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
+  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
+  --tint:#6b86d6; --glow:rgba(120,150,225,.5); --glowsoft:rgba(120,150,225,.16);
+  /* severity palette — kept distinct and colour-blind-legible via paired icons */
+  --crit:#e0584f; --critsoft:rgba(224,88,79,.16); --critglow:rgba(224,88,79,.5);
+  --behind:#e0a368; --behindsoft:rgba(224,163,104,.16); --behindglow:rgba(224,163,104,.5);
+  --ok:#67d39b; --oksoft:rgba(103,211,155,.14); --okglow:rgba(103,211,155,.45);
+  --ahead:#6fb8d8; --aheadsoft:rgba(111,184,216,.14); --aheadglow:rgba(111,184,216,.45);
+  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
+
+  min-width:380px;
+  font:14px/1.45 var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+}
+#gllg-auditor *{box-sizing:border-box}
+
+/* ---- window chrome: recolour the ApplicationV2 frame to dark glass ---- */
+#gllg-auditor.application{
+  border:1px solid var(--edge); border-radius:14px; overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 22%),
+    linear-gradient(160deg, #161d2c, #0a0e16 78%);
+  box-shadow:0 28px 80px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.10), 0 0 60px var(--glowsoft);
+  backdrop-filter:blur(18px) saturate(1.12);
+}
+#gllg-auditor .window-header{
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+  border-bottom:1px solid var(--hair); color:var(--ink);
+  font-family:var(--font); font-weight:700; letter-spacing:.02em;
+}
+#gllg-auditor .window-header .window-title{font-family:var(--font);font-weight:700}
+#gllg-auditor .window-header .header-control{color:var(--muted)}
+#gllg-auditor .window-header .header-control:hover{color:var(--ink)}
+#gllg-auditor .window-content{
+  background:none; color:var(--ink); padding:0; overflow-y:auto; overflow-x:hidden;
+}
+
+/* ---- scrollbar ---- */
+#gllg-auditor .window-content::-webkit-scrollbar{width:9px}
+#gllg-auditor .window-content::-webkit-scrollbar-thumb{
+  background:rgba(255,255,255,.12); border-radius:99px; border:2px solid transparent; background-clip:padding-box}
+#gllg-auditor .window-content::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.22);background-clip:padding-box}
+
+#gllg-auditor .gllg-audit-root{padding:11px 12px 12px; display:flex; flex-direction:column; gap:11px}
+
+/* ============================ empty / error ============================ */
+#gllg-auditor .gllg-empty{display:flex;flex-direction:column;align-items:center;gap:12px;
+  padding:36px 24px;text-align:center;color:var(--muted)}
+#gllg-auditor .gllg-empty i{font-size:34px;color:var(--tint);filter:drop-shadow(0 0 14px var(--glowsoft));opacity:.85}
+#gllg-auditor .gllg-empty p{margin:0;max-width:34ch;line-height:1.5}
+
+/* ============================ party banner ============================ */
+#gllg-auditor .gllg-party{display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));
+  border:1px solid var(--hair);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+#gllg-auditor .gp-id{flex:1;min-width:0}
+#gllg-auditor .gp-name{font-size:16px;font-weight:760;letter-spacing:.01em;line-height:1.1;
+  background:linear-gradient(180deg,#fff,#cdd6e8);-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gllg-auditor .gp-meta{display:flex;gap:6px;margin-top:4px}
+#gllg-auditor .gp-pill{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.05);border:1px solid var(--hair)}
+#gllg-auditor .gp-pill i{font-size:8.5px;opacity:.8}
+
+#gllg-auditor .gp-tally{display:flex;gap:4px}
+#gllg-auditor .tally{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;
+  font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;line-height:1;
+  border:1px solid transparent}
+#gllg-auditor .tally i{font-size:9.5px}
+
+#gllg-auditor .gp-actions{display:flex;gap:5px}
+#gllg-auditor .gllg-btn{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;cursor:pointer;
+  color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--hair);
+  transition:background .14s,color .14s,box-shadow .14s,transform .1s}
+#gllg-auditor .gllg-btn:hover{background:rgba(255,255,255,.11);color:var(--ink);box-shadow:0 0 12px var(--glowsoft)}
+#gllg-auditor .gllg-btn:active{transform:translateY(1px)}
+#gllg-auditor .gllg-btn i{font-size:13px}
+
+/* ===================== party wealth strip ===================== */
+#gllg-auditor .gllg-party-wealth{display:flex;align-items:center;gap:9px;padding:7px 12px;border-radius:10px;
+  background:rgba(255,255,255,.025);border:1px solid var(--hair)}
+#gllg-auditor .pw-lbl{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
+#gllg-auditor .pw-bar{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+#gllg-auditor .pw-bar i{position:absolute;inset:0;width:0;border-radius:99px;
+  background:linear-gradient(90deg,var(--tint),color-mix(in srgb,var(--tint) 70%,#fff));
+  box-shadow:0 0 8px var(--glowsoft);transition:width .7s cubic-bezier(.34,1.1,.4,1)}
+#gllg-auditor .pw-val{font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;white-space:nowrap}
+#gllg-auditor .pw-val em{color:var(--muted);font-style:normal;font-weight:600;font-size:10.5px}
+#gllg-auditor .pw-delta{font-variant-numeric:tabular-nums;font-size:11px;font-weight:800;min-width:42px;text-align:right}
+
+#gllg-auditor .gllg-mode-note{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#c8b08a;line-height:1.4;
+  padding:7px 11px;border-radius:9px;background:var(--behindsoft);border:1px solid rgba(224,163,104,.22)}
+#gllg-auditor .gllg-mode-note i{color:var(--behind)}
+
+/* ============================ member cards ============================ */
+#gllg-auditor .gllg-members{display:flex;flex-direction:column;gap:9px}
+
+#gllg-auditor .gllg-member{position:relative;border-radius:12px;padding:11px 12px;isolation:isolate;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.008));
+  border:1px solid var(--hair);
+  box-shadow:0 10px 26px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06);
+  transition:transform .18s cubic-bezier(.34,1.3,.4,1),box-shadow .2s,border-color .2s;
+  animation:gllg-cardin .42s both cubic-bezier(.34,1.4,.4,1);animation-delay:calc(var(--i,0)*55ms)}
+@keyframes gllg-cardin{0%{opacity:0;transform:translateY(8px) scale(.985)}100%{opacity:1;transform:none}}
+#gllg-auditor .gllg-member:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.09)}
+/* a thin status spine down the left edge, tinted by worst severity */
+#gllg-auditor .gllg-member::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:99px;z-index:1;
+  background:var(--spine,var(--ok));box-shadow:0 0 10px var(--spineglow,var(--okglow));opacity:.9}
+#gllg-auditor .gllg-member.sev-critical{--spine:var(--crit);--spineglow:var(--critglow)}
+#gllg-auditor .gllg-member.sev-behind{--spine:var(--behind);--spineglow:var(--behindglow)}
+#gllg-auditor .gllg-member.sev-ontrack{--spine:var(--ok);--spineglow:var(--okglow)}
+#gllg-auditor .gllg-member.sev-ahead{--spine:var(--ahead);--spineglow:var(--aheadglow)}
+
+#gllg-auditor .gm-head{display:flex;align-items:center;gap:10px;margin-bottom:9px;padding-left:6px}
+#gllg-auditor .gm-portrait{position:relative;width:42px;height:42px;flex:none;padding:0;border-radius:10px;cursor:pointer;
+  border:1px solid var(--edge);overflow:visible;background:none;transition:transform .15s,box-shadow .15s}
+#gllg-auditor .gm-portrait img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:none;display:block;
+  background:#0a0e16}
+#gllg-auditor .gm-portrait:hover{transform:scale(1.05);box-shadow:0 0 14px var(--glowsoft)}
+#gllg-auditor .gm-status{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:99px;display:grid;place-items:center;
+  font-size:9px;color:#0a0e16;border:2px solid #0e1320;background:var(--spine,var(--ok));box-shadow:0 0 8px var(--spineglow,var(--okglow))}
+#gllg-auditor .gm-id{min-width:0;flex:1}
+#gllg-auditor .gm-name{font-size:14px;font-weight:740;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gllg-auditor .gm-level{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:1px}
+
+/* ---- fundamentals chips ---- */
+#gllg-auditor .gm-chips{display:flex;flex-wrap:wrap;gap:5px;padding-left:6px}
+#gllg-auditor .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 7px;border-radius:99px;
+  font-size:10.5px;font-weight:700;letter-spacing:.01em;line-height:1;cursor:default;
+  border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink);
+  transition:transform .12s cubic-bezier(.34,1.4,.5,1),box-shadow .15s,background .15s}
+#gllg-auditor .chip:hover{transform:translateY(-1px)}
+#gllg-auditor .chip i{font-size:9px;opacity:.95}
+#gllg-auditor .chip .chip-name{opacity:.9}
+#gllg-auditor .chip .chip-val{font-variant-numeric:tabular-nums;font-weight:800;opacity:.95}
+#gllg-auditor .chip.soft{opacity:.82}
+/* severity tints for chips */
+#gllg-auditor .chip.sev-critical{color:#ffd9d4;background:var(--critsoft);border-color:rgba(224,88,79,.4);box-shadow:0 0 12px var(--critsoft)}
+#gllg-auditor .chip.sev-critical i{color:var(--crit)}
+#gllg-auditor .chip.sev-behind{color:#f4dcc0;background:var(--behindsoft);border-color:rgba(224,163,104,.38)}
+#gllg-auditor .chip.sev-behind i{color:var(--behind)}
+#gllg-auditor .chip.sev-ontrack{color:#cfe9da;background:var(--oksoft);border-color:rgba(103,211,155,.28)}
+#gllg-auditor .chip.sev-ontrack i{color:var(--ok)}
+#gllg-auditor .chip.sev-ahead{color:#d2e8f3;background:var(--aheadsoft);border-color:rgba(111,184,216,.30)}
+#gllg-auditor .chip.sev-ahead i{color:var(--ahead)}
+/* a critical chip gently pulses to draw the eye */
+#gllg-auditor .chip.sev-critical{animation:gllg-critpulse 2.8s ease-in-out infinite}
+@keyframes gllg-critpulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 14px var(--critsoft)}}
+
+/* ---- missing list ---- */
+#gllg-auditor .gm-missing{list-style:none;margin:9px 0 0;padding:8px 10px 8px 6px;display:flex;flex-direction:column;gap:4px;
+  border-radius:9px;background:rgba(224,88,79,.05);border:1px solid rgba(224,88,79,.16)}
+#gllg-auditor .gm-missing li{display:flex;align-items:center;gap:7px;font-size:11px;color:#f0cdc8;line-height:1.3}
+#gllg-auditor .gm-missing li i{font-size:8px;color:var(--crit)}
+
+/* ---- per-PC wealth ---- */
+#gllg-auditor .gm-wealth{display:flex;align-items:center;gap:8px;margin-top:9px;padding:6px 9px 6px 6px;border-radius:9px;
+  background:rgba(255,255,255,.02)}
+/* wealth-drift is an INDEPENDENT readout — its bar colours by wealth severity,
+   not the card's overall (fundamentals-driven) status. */
+#gllg-auditor .gm-wealth.sev-critical,#gllg-auditor .gm-wealth.sev-behind{--spine:var(--behind);--spineglow:var(--behindglow)}
+#gllg-auditor .gm-wealth.sev-ontrack{--spine:var(--ok);--spineglow:var(--okglow)}
+#gllg-auditor .gm-wealth.sev-ahead{--spine:var(--ahead);--spineglow:var(--aheadglow)}
+#gllg-auditor .gw-lbl{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
+#gllg-auditor .gw-bar{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+#gllg-auditor .gw-bar i{position:absolute;inset:0;width:0;border-radius:99px;
+  background:linear-gradient(90deg,var(--spine,var(--ok)),color-mix(in srgb,var(--spine,var(--ok)) 65%,#fff));
+  box-shadow:0 0 7px var(--spineglow,var(--okglow));transition:width .7s cubic-bezier(.34,1.1,.4,1)}
+#gllg-auditor .gw-bar i.over{background:linear-gradient(90deg,var(--ahead),#bfe6f5)}
+#gllg-auditor .gw-val{font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;white-space:nowrap}
+#gllg-auditor .gw-val em{color:var(--muted);font-style:normal;font-weight:600;font-size:9.5px}
+#gllg-auditor .gw-delta{font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:800;min-width:40px;text-align:right}
+
+/* ---- severity text colour for delta/labels ---- */
+#gllg-auditor .sev-critical .gw-delta,#gllg-auditor .gw-delta.sev-critical,#gllg-auditor .pw-delta.sev-critical{color:var(--crit)}
+#gllg-auditor .sev-behind .gw-delta,#gllg-auditor .pw-delta.sev-behind{color:var(--behind)}
+#gllg-auditor .sev-ontrack .gw-delta,#gllg-auditor .pw-delta.sev-ontrack{color:var(--ok)}
+#gllg-auditor .sev-ahead .gw-delta,#gllg-auditor .pw-delta.sev-ahead{color:var(--ahead)}
+#gllg-auditor .tally.sev-critical{color:var(--crit);background:var(--critsoft);border-color:rgba(224,88,79,.35)}
+#gllg-auditor .tally.sev-behind{color:var(--behind);background:var(--behindsoft);border-color:rgba(224,163,104,.32)}
+#gllg-auditor .tally.sev-ontrack{color:var(--ok);background:var(--oksoft);border-color:rgba(103,211,155,.26)}
+#gllg-auditor .tally.sev-ahead{color:var(--ahead);background:var(--aheadsoft);border-color:rgba(111,184,216,.26)}
+
+/* ============================ footer ============================ */
+#gllg-auditor .gllg-foot{font-size:9px;line-height:1.5;color:var(--faint);text-align:center;padding:2px 6px 0;opacity:.85}
+
+@media (prefers-reduced-motion: reduce){
+  #gllg-auditor *{animation:none !important;transition:none !important}
+}
+
+/* ============================================================
+   Review chat card + hand-out + generate dialog.
+   These live OUTSIDE the auditor window, so the Arcane Glass
+   tokens are re-declared on their own roots.
+   ============================================================ */
+.gllg-card,.gllg-handout,.application.gllg-generate{
+  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
+  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
+  --tint:#6b86d6; --glow:rgba(120,150,225,.5); --glowsoft:rgba(120,150,225,.16);
+  --crit:#e0584f; --behind:#e0a368; --ok:#67d39b; --ahead:#6fb8d8;
+  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
+}
+
+/* ---- let the card take over the whole chat message (no nested box) ---- */
+/* Strip the default light message frame, but KEEP the header (sender, timestamp,
+   delete) — just recolour it to sit cleanly above the glass card. */
+.chat-message:has(.gllg-card),
+.chat-message.whisper:has(.gllg-card){
+  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c; --crit:#e0584f;
+  padding:0 !important; border:none !important; background:none !important; box-shadow:none !important;
+}
+.chat-message:has(.gllg-card) .message-header{
+  background:none; border:none; padding:2px 4px 6px; font-family:"Oxanium","Segoe UI",system-ui,sans-serif}
+.chat-message:has(.gllg-card) .message-sender{color:var(--muted); font-weight:700}
+.chat-message:has(.gllg-card) .whisper-to{color:var(--faint); font-style:italic}
+.chat-message:has(.gllg-card) .message-metadata,
+.chat-message:has(.gllg-card) .message-timestamp{color:var(--faint)}
+.chat-message:has(.gllg-card) .message-metadata a,
+.chat-message:has(.gllg-card) .message-delete,
+.chat-message:has(.gllg-card) .message-header .header-control{color:var(--muted)}
+.chat-message:has(.gllg-card) .message-delete:hover,
+.chat-message:has(.gllg-card) .message-header .header-control:hover{color:var(--crit)}
+.chat-message:has(.gllg-card) .message-content{padding:0; margin:0}
+
+/* ---- the review card body ---- */
+.gllg-card{
+  font:13px/1.45 var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+  border:1px solid var(--edge); border-radius:13px; overflow:hidden; isolation:isolate;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 24%),
+    linear-gradient(160deg, #161d2c, #0a0e16 80%);
+  box-shadow:0 18px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), 0 0 40px var(--glowsoft);
+  animation:gllg-cardin .4s both cubic-bezier(.34,1.4,.4,1);
+}
+.gllg-card *{box-sizing:border-box}
+.gllg-card-head{padding:11px 13px 9px;border-bottom:1px solid var(--hair);
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0))}
+.gllg-card-title{font-size:15px;font-weight:760;letter-spacing:.01em;display:flex;align-items:center;gap:8px;
+  background:linear-gradient(180deg,#fff,#cdd6e8);-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent}
+.gllg-card-title i{-webkit-text-fill-color:initial;color:var(--tint);filter:drop-shadow(0 0 10px var(--glowsoft))}
+.gllg-card-sub{margin-top:3px;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;font-variant-numeric:tabular-nums}
+
+/* reasoning disclosure */
+.gllg-card .gllg-why{margin:9px 11px 0;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.025);overflow:hidden}
+.gllg-card .gllg-why summary{cursor:pointer;list-style:none;padding:7px 10px;font-size:9.5px;font-weight:700;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.gllg-card .gllg-why summary::-webkit-details-marker{display:none}
+.gllg-card .gllg-why ul{margin:0;padding:2px 14px 9px 24px;display:flex;flex-direction:column;gap:3px}
+.gllg-card .gllg-why li{font-size:11px;color:#c8d2e6;line-height:1.35}
+
+/* parcels + items */
+.gllg-parcels{display:flex;flex-direction:column;gap:8px;padding:10px 11px}
+.gllg-parcel{border-radius:10px;border:1px solid var(--hair);background:rgba(255,255,255,.02);overflow:hidden}
+.gllg-parcel-head{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;
+  font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid var(--hair);background:rgba(255,255,255,.025)}
+.gllg-parcel-tot{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:800}
+.gllg-items{display:flex;flex-direction:column}
+.gllg-card .gllg-empty{padding:10px;text-align:center;color:var(--faint);font-size:11px}
+
+.gllg-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid var(--hair);
+  transition:background .14s}
+.gllg-item:last-child{border-bottom:none}
+.gllg-item:hover{background:rgba(255,255,255,.04)}
+.gllg-item-img{width:34px;height:34px;flex:none;border-radius:8px;object-fit:cover;border:1px solid var(--edge);
+  background:#0a0e16}
+.gllg-item-main{flex:1;min-width:0}
+.gllg-item-name{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.2}
+.gllg-item-meta{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px}
+.gllg-item-meta .gllg-for{color:var(--tint);font-weight:700;margin-left:4px}
+.gllg-item-reason{font-size:10px;color:var(--faint);font-style:italic;margin-top:2px;line-height:1.3}
+
+/* tier badge */
+.gllg-tier{font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:99px;line-height:1;border:1px solid var(--edge);color:var(--muted)}
+.gllg-tier.sev-rune{color:#d2dcff;background:rgba(107,134,214,.16);border-color:rgba(107,134,214,.4)}
+.gllg-tier.sev-core{color:#cfe9da;background:rgba(103,211,155,.13);border-color:rgba(103,211,155,.28)}
+.gllg-tier.sev-unusual{color:#f4dcc0;background:rgba(224,163,104,.15);border-color:rgba(224,163,104,.36)}
+.gllg-tier.sev-consumable{color:#d2e8f3;background:rgba(111,184,216,.13);border-color:rgba(111,184,216,.3)}
+.gllg-tier.sev-heirloom{color:#f3e1b0;background:rgba(224,184,104,.16);border-color:rgba(224,184,104,.45)}
+
+/* LLM flavor / provenance */
+.gllg-flavorname{font-size:11px;font-weight:700;color:#cdb6ef;font-style:italic;letter-spacing:.01em;margin-top:1px}
+.gllg-item-flavor{display:flex;gap:5px;margin-top:3px;font-size:11px;line-height:1.4;color:var(--ink);
+  font-style:italic;opacity:.92}
+.gllg-item-flavor i{color:#b59be0;font-size:9px;margin-top:3px;flex:0 0 auto}
+.gllg-item-prov{margin-top:2px;font-size:10px;color:var(--muted);line-height:1.35}
+
+/* heirloom awakening rows */
+.gllg-item.gllg-is-heir{background:linear-gradient(90deg,rgba(224,184,104,.08),transparent 70%)}
+.gllg-item-heir{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:10.5px;font-weight:700;
+  color:#e8c987;font-style:italic}
+.gllg-item-heir i{font-size:10px;filter:drop-shadow(0 0 4px rgba(224,184,104,.5))}
+
+.gllg-item-ctl{display:flex;gap:4px;flex:none}
+.gllg-mini{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;cursor:pointer;
+  color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--hair);
+  transition:background .14s,color .14s,box-shadow .14s,transform .1s}
+.gllg-mini:hover{background:rgba(255,255,255,.12);color:var(--ink);box-shadow:0 0 10px var(--glowsoft)}
+.gllg-mini:active{transform:translateY(1px)}
+.gllg-mini i{font-size:11px}
+
+.gllg-coins-row{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:11.5px;font-weight:700;
+  color:#f0d9a6;font-variant-numeric:tabular-nums;border-top:1px solid var(--hair);background:rgba(224,163,104,.05)}
+.gllg-coins-row i{color:var(--behind)}
+
+/* destination routing */
+.gllg-routing{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 11px;
+  border-top:1px solid var(--hair);font-size:11px;background:rgba(107,134,214,.05)}
+.gllg-routing>i{color:var(--tint);font-size:12px}
+.gllg-route-lbl{color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+.gllg-route-sel{flex:1 1 120px;min-width:110px;padding:5px 8px;border-radius:8px;font:inherit;font-size:11.5px;
+  color:var(--ink);background:#101622;border:1px solid var(--edge);cursor:pointer;
+  transition:border-color .14s,box-shadow .15s}
+.gllg-route-sel:hover{border-color:var(--tint)}
+.gllg-route-sel:focus{outline:none;border-color:var(--tint);box-shadow:0 0 10px var(--glowsoft)}
+.gllg-route-sel option,.gllg-route-sel optgroup{background:#161d2c;color:var(--ink)}
+.gllg-route-warn{color:var(--behind);font-weight:700}
+
+/* footer actions */
+.gllg-card-actions{display:flex;gap:7px;padding:10px 11px 12px;border-top:1px solid var(--hair)}
+.gllg-card .gllg-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 10px;border-radius:9px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+  color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--edge);
+  transition:background .14s,box-shadow .15s,transform .1s}
+.gllg-card .gllg-btn:hover{background:rgba(255,255,255,.12);box-shadow:0 0 14px var(--glowsoft)}
+.gllg-card .gllg-btn:active{transform:translateY(1px)}
+.gllg-card .gllg-btn[disabled]{opacity:.5;pointer-events:none}
+.gllg-card .gllg-btn.gllg-go{color:#0a130d;background:linear-gradient(180deg,#8ee6b5,#5cc88c);border-color:transparent;
+  box-shadow:0 4px 16px rgba(103,211,155,.3)}
+.gllg-card .gllg-btn.gllg-go:hover{box-shadow:0 6px 22px rgba(103,211,155,.45)}
+.gllg-card .gllg-btn.gllg-ghost{flex:0 0 auto;color:var(--muted);background:transparent}
+
+/* materialized + error states */
+.gllg-card.gllg-done .gllg-card-title i{color:var(--ok)}
+.gllg-created{list-style:none;margin:0;padding:10px 13px;display:flex;flex-direction:column;gap:5px}
+.gllg-created li{font-size:12px;display:flex;align-items:center;gap:8px}
+.gllg-mini-tag{font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--hair)}
+.gllg-card .gllg-err{padding:10px 13px;color:#f0cdc8;font-size:12px}
+
+/* ---- plain chat hand-out (quest reward target) ---- */
+.gllg-handout{font:13px/1.45 var(--font);color:var(--ink)}
+.gllg-handout h3{margin:0 0 6px;font-weight:760}
+.gllg-handout ul{margin:0;padding-left:18px}
+.gllg-handout .gllg-gp{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
+.gllg-handout .gllg-coins{color:#f0d9a6;font-weight:700;margin:6px 0 0}
+.gllg-handout .gllg-hint{color:var(--faint);font-size:10px;font-style:italic;margin:6px 0 0}
+
+/* ---- generate dialog ---- */
+/* recolour the DialogV2 frame to dark glass (default is light parchment, which
+   leaves our light text/controls unreadable) */
+.application.gllg-generate{
+  border:1px solid var(--edge); border-radius:13px; overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 22%),
+    linear-gradient(160deg, #161d2c, #0a0e16 80%);
+  box-shadow:0 24px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.09), 0 0 50px var(--glowsoft);
+  backdrop-filter:blur(18px) saturate(1.12);
+}
+.application.gllg-generate .window-header{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));
+  border-bottom:1px solid var(--hair)}
+.application.gllg-generate .window-header .window-title{font-family:var(--font);font-weight:700;color:var(--ink)}
+.application.gllg-generate .window-content{font-family:var(--font);color:var(--ink);background:none}
+.application.gllg-generate .dialog-buttons,
+.application.gllg-generate .form-footer{background:none}
+/* style only the footer action buttons — NOT window-control buttons, which carry
+   their Font Awesome icon class directly on the <button> (overriding their
+   font-family turns the glyph into a tofu square). */
+.application.gllg-generate button:not(.header-control):not([class*="fa-"]){
+  font-family:var(--font);color:var(--ink);
+  background:rgba(255,255,255,.06);border:1px solid var(--edge)}
+.application.gllg-generate button:not(.header-control):not([class*="fa-"]):hover{
+  background:rgba(255,255,255,.12);box-shadow:0 0 12px var(--glowsoft)}
+
+.gllg-genform{display:flex;flex-direction:column;gap:9px;padding:4px 2px;min-width:340px;font-family:var(--font)}
+.gllg-genform .gllg-field{display:flex;flex-direction:column;gap:4px}
+.gllg-genform .gllg-row{display:flex;gap:9px}
+.gllg-genform .gllg-row .gllg-field{flex:1}
+.gllg-genform label{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.gllg-genform .gllg-dim{color:var(--faint);letter-spacing:0;text-transform:none;font-weight:600;font-size:9.5px}
+.gllg-genform select,.gllg-genform input{font:inherit;font-size:13px;color:var(--ink);
+  padding:6px 9px;border-radius:8px;border:1px solid var(--edge);background:#101622}
+.gllg-genform select:focus,.gllg-genform input:focus{outline:none;border-color:var(--tint);box-shadow:0 0 0 3px var(--glowsoft)}
+/* the native option popup ignores the select's translucent bg — force dark */
+.gllg-genform select option,.gllg-genform select optgroup{background:#161d2c;color:var(--ink)}
+.gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}
+
+@media (prefers-reduced-motion: reduce){
+  .gllg-card,.gllg-card *{animation:none !important;transition:none !important}
+}

@@ -1,0 +1,90 @@
+{{!-- Gear health-check dashboard. View model is precomputed in
+      AuditorDashboard._prepareContext; this template stays declarative. --}}
+<div class="gllg-audit-root">
+
+  {{#unless ok}}
+  <div class="gllg-empty">
+    <i class="fa-solid fa-gem"></i>
+    <p>{{reason}}</p>
+  </div>
+  {{else}}
+
+  {{!-- ===== party summary banner ===== --}}
+  <header class="gllg-party">
+    <div class="gp-id">
+      <div class="gp-name">{{party.name}}</div>
+      <div class="gp-meta">
+        <span class="gp-pill"><i class="fa-solid fa-users"></i>{{party.size}}</span>
+        <span class="gp-pill"><i class="fa-solid fa-chevron-up"></i>{{localize 'GLLG.audit.avgLevel'}} {{party.avgLevel}}</span>
+      </div>
+    </div>
+
+    <div class="gp-tally">
+      {{#if party.counts.critical}}<span class="tally sev-critical"><i class="fa-solid fa-triangle-exclamation"></i>{{party.counts.critical}}</span>{{/if}}
+      {{#if party.counts.behind}}<span class="tally sev-behind"><i class="fa-solid fa-arrow-trend-down"></i>{{party.counts.behind}}</span>{{/if}}
+      {{#if party.counts.ontrack}}<span class="tally sev-ontrack"><i class="fa-solid fa-check"></i>{{party.counts.ontrack}}</span>{{/if}}
+      {{#if party.counts.ahead}}<span class="tally sev-ahead"><i class="fa-solid fa-arrow-trend-up"></i>{{party.counts.ahead}}</span>{{/if}}
+    </div>
+
+    <div class="gp-actions">
+      <button type="button" class="gllg-btn" data-action="refresh" title="{{localize 'GLLG.audit.refresh'}}"><i class="fa-solid fa-rotate"></i></button>
+      {{#if isGM}}<button type="button" class="gllg-btn" data-action="settings" title="{{localize 'GLLG.audit.settings'}}"><i class="fa-solid fa-sliders"></i></button>{{/if}}
+    </div>
+  </header>
+
+  {{!-- party wealth strip --}}
+  <div class="gllg-party-wealth {{party.wealth.cls}}">
+    <span class="pw-lbl">{{localize 'GLLG.audit.partyWealth'}}</span>
+    <div class="pw-bar"><i style="width:{{party.wealth.pct}}%"></i></div>
+    <span class="pw-val">{{party.wealth.net}}<em>/{{party.wealth.expected}} gp</em></span>
+    <span class="pw-delta {{party.wealth.cls}}">{{party.wealth.deltaSign}}{{party.wealth.deltaPct}}%</span>
+  </div>
+
+  {{#if abp}}<div class="gllg-mode-note"><i class="fa-solid fa-wand-sparkles"></i>{{localize 'GLLG.audit.abpNote'}}</div>{{/if}}
+
+  {{!-- ===== per-PC cards ===== --}}
+  <div class="gllg-members">
+    {{#each members}}
+    <section class="gllg-member {{this.statusCls}}" data-actor-id="{{this.id}}">
+      <div class="gm-head">
+        <button type="button" class="gm-portrait" data-action="focusActor" data-actor-id="{{this.id}}" title="{{localize 'GLLG.audit.openSheet'}}">
+          <img src="{{this.img}}" alt="{{this.name}}"/>
+          <span class="gm-status"><i class="fa-solid {{this.statusIcon}}"></i></span>
+        </button>
+        <div class="gm-id">
+          <div class="gm-name">{{this.name}}</div>
+          <div class="gm-level">{{localize 'GLLG.audit.level'}} {{this.level}}</div>
+        </div>
+      </div>
+
+      {{!-- fundamentals chips --}}
+      <div class="gm-chips">
+        {{#each this.chips}}
+        <span class="chip {{this.cls}} {{#if this.soft}}soft{{/if}}" data-tooltip="{{this.tip}}">
+          <i class="fa-solid {{this.icon}}"></i>
+          <span class="chip-name">{{this.name}}</span>
+          <span class="chip-val">{{this.value}}</span>
+        </span>
+        {{/each}}
+      </div>
+
+      {{#if this.missing.length}}
+      <ul class="gm-missing">
+        {{#each this.missing}}<li><i class="fa-solid fa-angle-right"></i>{{this}}</li>{{/each}}
+      </ul>
+      {{/if}}
+
+      {{!-- wealth readout --}}
+      <div class="gm-wealth {{this.wealth.cls}}">
+        <span class="gw-lbl">{{localize 'GLLG.audit.wealth'}}</span>
+        <div class="gw-bar"><i style="width:{{this.wealth.pct}}%" class="{{#if this.wealth.over}}over{{/if}}"></i></div>
+        <span class="gw-val">{{this.wealth.net}}<em>/{{this.wealth.expected}}</em></span>
+        <span class="gw-delta">{{this.wealth.deltaSign}}{{this.wealth.deltaPct}}%</span>
+      </div>
+    </section>
+    {{/each}}
+  </div>
+
+  <footer class="gllg-foot">{{localize 'GLLG.audit.estimateNote'}}</footer>
+  {{/unless}}
+</div>
