@@ -33,7 +33,8 @@ export async function openGenerateDialog(presetContext) {
   Hooks.on("renderDialogV2", onRender);
 
   const result = await DialogV2.wait({
-    window: { title: "Generate Loot", icon: "fa-solid fa-wand-sparkles" },
+    window: { title: "Generate Loot", icon: "fa-solid fa-wand-sparkles", resizable: true },
+    position: { width: 460 },
     classes: ["gllg", "gllg-generate"],
     content: buildForm(presetContext),
     rejectClose: false,

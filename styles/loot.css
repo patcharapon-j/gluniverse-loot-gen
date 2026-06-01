@@ -396,7 +396,10 @@
 .application.gllg-generate button:not(.header-control):not([class*="fa-"]):hover{
   background:rgba(255,255,255,.12);box-shadow:0 0 12px var(--glowsoft)}
 
-.gllg-genform{display:flex;flex-direction:column;gap:9px;padding:4px 2px;min-width:340px;font-family:var(--font)}
+/* fills the dialog (which now carries an explicit, resizable width) and shrinks
+   with it — no fixed floor that would force horizontal overflow when narrowed. */
+.gllg-genform{display:flex;flex-direction:column;gap:9px;padding:4px 2px;width:100%;min-width:0;font-family:var(--font)}
+.gllg-genform select,.gllg-genform input,.gllg-genform textarea{min-width:0;max-width:100%}
 .gllg-genform .gllg-field{display:flex;flex-direction:column;gap:4px}
 .gllg-genform .gllg-row{display:flex;gap:9px}
 .gllg-genform .gllg-row .gllg-field{flex:1}
