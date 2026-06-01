@@ -22,6 +22,7 @@
 
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
+import { traitGlossaryBlock } from "./pf2e-traits.mjs";
 
 const HOST = process.env.GLLG_HOST || "127.0.0.1";
 const PORT = Number(process.env.GLLG_PORT || process.env.PORT || 7878);
@@ -358,16 +359,24 @@ function buildWorkshopPrompt(payload) {
     '  "treasure"    (gems, art objects, other valuables),',
     '  "equipment"   (rings, staves, wands, worn/wondrous gear, shields, tools — the catch-all).',
     "",
-    "Use real lowercase, hyphenated PF2e trait slugs (e.g. magical, evocation, invested, cursed, fire).",
+    "Use real lowercase, hyphenated PF2e trait slugs. The full trait dictionary",
+    "below tells you exactly which traits exist and what each one means — pick from it.",
+    "",
+    traitGlossaryBlock(),
     "",
     "Give every item APPROPRIATE traits — never leave the traits array empty:",
-    '  - Any magic item: include "magical" AND a tradition trait ("arcane", "divine", "occult", or "primal").',
-    '    Add a school trait (e.g. "evocation", "abjuration") and/or an energy trait (e.g. "fire", "cold") when it fits.',
-    '  - WEAPONS: also set "category" ("simple", "martial", or "advanced") and "group"',
+    '  - Any magic item: include "magical" AND a tradition trait ("arcane", "divine", "occult", or "primal"); add an energy trait ("fire", "cold", …) when it fits.',
+    '  - WEAPONS: ALWAYS set "category" ("simple", "martial", or "advanced"), "group"',
     '    ("sword", "axe", "club", "polearm", "spear", "bow", "dart", "knife", "flail", "hammer", "pick", "brawling", etc.),',
-    '    plus relevant combat traits (e.g. "agile", "finesse", "reach", "thrown-20", "versatile-s", "deadly-d8", "two-hand-d10").',
-    '  - ARMOR: also set "category" ("light", "medium", or "heavy") and "group"',
-    '    ("leather", "chain", "composite", "plate", etc.), plus relevant traits (e.g. "comfort", "flexible", "bulwark", "noisy").',
+    "    AND the combat traits a weapon of that real-world form carries (see the WEAPON traits above) —",
+    '    e.g. a rapier-like blade gets "finesse", "deadly-d8", "disarm"; a dagger gets "agile", "finesse", "thrown-10", "versatile-s";',
+    '    a greatsword gets "versatile-p"; a longbow gets "deadly-d10", "propulsive", "volley-30". Never ship a weapon with no combat traits.',
+    '    Also set "baseItem" to the real PF2e base weapon it is built on (e.g. "longsword", "dagger", "rapier", "greatsword", "longbow"),',
+    "    so it inherits that weapon's mechanics; only omit baseItem for a truly novel weapon that matches no existing base.",
+    '  - ARMOR: ALWAYS set "category" ("light", "medium", or "heavy") and "group"',
+    '    ("leather", "chain", "composite", "plate", etc.), plus any fitting armor traits ("comfort", "flexible", "bulwark", "noisy").',
+    '    Also set "baseItem" to the real PF2e base armor it is built on (e.g. "leather", "chain-shirt", "breastplate", "half-plate", "full-plate"),',
+    "    unless the armor is genuinely novel and matches no existing base.",
     '  - WORN/invested gear (rings, cloaks, amulets, belts, trinkets): include "invested" (and "magical" + a tradition if magical).',
     '  - CONSUMABLES: include "consumable" and the kind ("potion", "elixir", "scroll", "talisman", "oil", "poison"); add a tradition/energy trait if magical.',
     usages ? `Valid usage slugs include: ${usages}.`
@@ -390,6 +399,7 @@ function buildWorkshopPrompt(payload) {
     '  "bulk" (e.g. "L", "1", "—"), "usage" (a usage slug),',
     '  "traits" (array of trait slugs — appropriate to the item, never empty),',
     '  "category" + "group" (REQUIRED for weapons and armor; see above),',
+    '  "baseItem" (REQUIRED for weapons and armor unless genuinely novel — the real PF2e base slug, e.g. "longsword", "chain-shirt"),',
     '  "damageType" + "damageDie" (optional, weapons only),',
     '  "description" (2-5 sentences using the enrichers above where anything is rolled),',
     '  "flavor" (one vivid sentence, <= 200 chars),',
@@ -427,6 +437,7 @@ function parseWorkshopItems(stdout) {
       traits: normTraits(it.traits),
       category: str(it.category, 40),
       group: str(it.group ?? it.weaponGroup ?? it.armorGroup, 40),
+      baseItem: str(it.baseItem ?? it.base ?? it.baseType, 60),
       damageType: str(it.damageType, 30),
       damageDie: str(it.damageDie ?? it.die, 6),
       description: str(it.description, 1500) ?? "",
