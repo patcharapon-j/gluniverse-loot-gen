@@ -95,7 +95,9 @@ async function callWorkshop(params) {
   const payload = {
     prompt: params.prompt,
     count: params.count,
-    level: params.level,
+    // Omit level entirely when blank so the sidecar treats it as "AI decides".
+    // (Sending an explicit null trips Number(null)===0 on the server side.)
+    ...(params.level != null ? { level: params.level } : {}),
     rarity: params.rarity,
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,

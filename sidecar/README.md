@@ -122,9 +122,21 @@ damageType/die). The model is told to pick the **correct PF2e item type**
 **appropriate traits** (`magical` + a tradition for magic items, combat traits +
 category/group for weapons, armor traits + category/group for armor, `invested`
 for worn gear), and encode any dice/DCs as **Foundry enrichers**
-(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`). The request
-also carries the campaign's variant rules (e.g. **Proficiency Without Level**) so
-authored modifiers and DCs match your table's math.
+(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
+
+To keep those numbers honest, the prompt embeds **canonical PF2e grounding tables**
+— the *DCs by Level* table and the baseline *permanent-item price by level* — so
+the model reads real values instead of guessing. Damage, persistent damage,
+healing, and **conditions** are anchored to the item-**grade** ladder
+(lesser/moderate/greater/major, keyed to item level): grade-appropriate damage
+dice, splash/persistent scaling mirroring alchemical bombs, real condition names
+with small (usually 1-2) values, and save-gated graded outcomes at the level-based
+DC. The request also carries the
+campaign's variant rules: when **Proficiency Without Level** is on, the prompt
+pre-computes the flatter, level-subtracted DC for the item's level (e.g. a level-10
+item is told its DC is **17**, not 27) and reminds the model that PWL changes only
+proficiency-based DCs/modifiers — item bonuses, striking dice, and prices are
+unchanged.
 
 The module then **sanitizes traits/usage/damage against the live `CONFIG.PF2E`**
 and **validates each item against the actual PF2e DataModel** (filling defaults,
