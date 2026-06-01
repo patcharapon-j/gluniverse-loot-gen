@@ -124,8 +124,9 @@ so forged weapons/armor inherit proper mechanics, and encode any dice/DCs as
 **Foundry enrichers** (`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
 
 To get traits right, the prompt embeds a full **PF2e trait dictionary**
-([`pf2e-traits.mjs`](pf2e-traits.mjs)) — every weapon, armor, shield, general,
-magic, effect, and energy trait, each with a verified one-line meaning and the
+([`pf2e-traits.mjs`](pf2e-traits.mjs)) — the complete weapon, armor, shield,
+equipment, energy/elemental, and effect/mechanics trait rosters, each with a
+verified one-line meaning and the
 exact slug format for parameterized ones (`thrown-20`, `versatile-s`, `deadly-d8`,
 `two-hand-d10`). The roster mirrors the Archives of Nethys trait index and the
 meanings were checked against the rules (e.g. `recovery` = a thrown weapon returns

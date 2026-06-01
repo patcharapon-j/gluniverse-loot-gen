@@ -137,12 +137,34 @@ export const ITEM_TRAITS = [
   ["relic", "a personal artifact that grows in power with its bearer"],
   ["artifact", "a unique, immensely powerful item that can't be crafted normally"],
   ["precious", "made of a precious material (e.g. cold iron, silver, adamantine)"],
-  ["structure", "an item that builds or becomes a structure"],
+  ["structure", "an item that unfolds into or becomes a structure"],
   ["intelligent", "a sentient item with its own mind and agenda"],
-  ["contract", "a binding magical agreement item"]
+  ["contract", "a binding magical agreement item"],
+  ["adjustment", "alters an existing weapon/armor/shield; an item can hold only one adjustment at a time"],
+  ["whetstone", "consumable that boosts a weapon like a talisman, but needn't be affixed in advance"],
+  ["gadget", "a consumable technological invention with a one-off use"],
+  ["graft", "living tissue implanted permanently into the body; reduces invested-items-per-day by 1"],
+  ["lozenge", "an alchemical lozenge dissolved in the mouth, releasing its effect over time"],
+  ["bottled-breath", "an enchanted bottle of air held in the lungs; its effect lasts while you hold your breath"],
+  ["coda", "a bard instrument that works like a staff, prepared by playing related songs"],
+  ["spellgun", "an item that fires a magical effect like a bullet"],
+  ["missive", "magical stationery that must be crafted and composed before it is activated"],
+  ["censer", "a vessel in which incense is burned to activate it"],
+  ["figurehead", "installed on a vessel (1 hour); shifts to match the ship; only one per vessel"],
+  ["entrench", "while trained in the armor, spend 1 action for +1 circ AC vs the listed attack type until your next turn"],
+  ["expandable", "increases to a specific size when activated"],
+  ["processed", "an alchemical consumable too complex to make with a single Quick Alchemy action"],
+  ["mechanical", "a nonmagical mechanical/technological device"],
+  ["steam", "a steam-powered device"],
+  ["focused", "tied to Focus Points / Refocusing"],
+  ["trap", "an item or object that functions as a trap"],
+  ["saggorak", "associated with the twin-souled dwarven enclave of Saggorak"],
+  ["clockwork", "a wind-up clockwork device"]
 ];
 
-// Effect/mechanics traits that frequently appear on items' activated effects.
+// Effect / mechanics traits. These usually belong on an item's GRANTED action or
+// spell-like effect, not on the item's own trait list — but the model should know
+// them. The first block is the set most likely to appear on item effects.
 export const EFFECT_TRAITS = [
   ["holy", "anathema to unholy creatures (fiends, undead); blessed/celestial"],
   ["unholy", "anathema to holy creatures; fiendish/profane"],
@@ -152,15 +174,59 @@ export const EFFECT_TRAITS = [
   ["mental", "affects the mind; doesn't work on mindless creatures"],
   ["emotion", "a mental effect rooted in feeling (foiled by emotionless states)"],
   ["fear", "an emotion/mental effect that frightens"],
+  ["charm", "a mental effect that makes the target friendlier or sways its attitude"],
   ["sleep", "can render a creature unconscious"],
   ["light", "creates or manipulates light (counters darkness)"],
-  ["polymorph", "transforms the target's physical form"],
+  ["darkness", "creates or deepens darkness (counters light)"],
+  ["polymorph", "transforms the target's whole physical form"],
   ["morph", "alters part of the target's form"],
   ["teleportation", "instantly moves a creature/object across space"],
-  ["aura", "emits a continuous area effect around the bearer"],
+  ["summon", "summons a creature to fight for you"],
+  ["aura", "emits a continuous area effect around its source"],
+  ["consecration", "creates a consecrated/sanctified area"],
+  ["contingency", "an effect set to trigger later when a condition is met"],
+  ["detection", "attempts to detect creatures, magic, or objects at a distance"],
+  ["scrying", "gives sensory information from a distance via a sensor or apparatus"],
+  ["possession", "lets you inhabit or control another creature or object"],
+  ["prediction", "foretells or influences an upcoming roll/outcome"],
+  ["radiation", "exposes the target to radiation"],
   ["incapacitation", "strong vs lower-level foes; higher-level targets resist (level x2 rule)"],
-  ["fortune", "lets you roll twice and take the higher (no stacking with misfortune)"],
-  ["misfortune", "forces a reroll and the worse result"]
+  ["fortune", "lets you roll twice and take the higher (doesn't stack with misfortune)"],
+  ["misfortune", "forces a reroll and takes the worse result"],
+  ["splash", "deals splash damage in a small area around the target"],
+  ["extradimensional", "involves or creates an extradimensional space"]
+];
+
+// Action/spell mechanics traits (slug + terse meaning). Put these on an item's
+// granted ACTIONS/spells, not the item itself.
+export const ACTION_MECHANICS_TRAITS = [
+  ["attack", "involves an attack roll; counts toward the multiple attack penalty"],
+  ["concentrate", "requires mental focus; disrupted if you can't concentrate"],
+  ["manipulate", "uses hands/gestures; can trigger Reactive Strike"],
+  ["move", "involves movement; can trigger reactions to movement"],
+  ["open", "must be the first action of your turn"],
+  ["press", "usable only while affected by a multiple attack penalty"],
+  ["flourish", "you can use only one flourish action per turn"],
+  ["spellshape", "modifies a spell; use it directly before casting that spell"],
+  ["cantrip", "a spell cast at will, automatically heightened to half your level"],
+  ["focus", "a focus spell, cast by spending Focus Points"],
+  ["incarnate", "summon-like; the creature takes its Arrive action as you finish casting"],
+  ["minion", "a creature that acts once per turn when you spend an action to command it"],
+  ["summoned", "carried by summoned creatures (can't summon, create value, or cast costly spells)"],
+  ["linguistic", "relies on the target understanding a language"],
+  ["vocal", "must be performed aloud (foiled if you can't speak)"],
+  ["subtle", "no obvious manifestations; can be done without others noticing"],
+  ["secret", "the GM rolls it secretly"],
+  ["telepathy", "allows wordless mental communication"],
+  ["exploration", "used during exploration mode, outside encounters"],
+  ["downtime", "used during downtime"],
+  ["reckless", "a risky option with a built-in drawback"],
+  ["revelation", "an oracle revelation (divine insight) effect"],
+  ["tech", "technological in nature"],
+  // adventure/region-specific (kept for completeness)
+  ["skirmish", "used in skirmish/large-scale-combat contexts"],
+  ["tea", "a brewed-tea item/effect (Tian Xia)"],
+  ["trial", "an adventure-specific trial effect"]
 ];
 
 // Energy (damage) traits — the official eight; tag the energy a magic item channels.
@@ -202,6 +268,9 @@ export function traitGlossaryBlock() {
     "",
     "  EFFECT traits (tag an item's activated effect when relevant):",
     fmt(EFFECT_TRAITS),
+    "",
+    "  ACTION/SPELL mechanics traits (put on an item's granted actions/spells, not the item itself):",
+    fmt(ACTION_MECHANICS_TRAITS),
     "",
     `  ENERGY/damage traits (the official eight): ${ENERGY_TRAITS.join(", ")}.`,
     `  ELEMENTAL traits: ${ELEMENTAL_TRAITS.join(", ")}.   MAGICAL TRADITIONS: ${TRADITION_TRAITS.join(", ")}.`,
