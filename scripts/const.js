@@ -28,6 +28,7 @@ export const SETTINGS = {
   llmFlavor: "llmFlavor",                 // Boolean (world): request LLM provenance/flavor from the sidecar
   sidecarUrl: "sidecarUrl",               // String (world): base URL of the claude -p sidecar (same-origin path or full URL)
   sidecarSecret: "sidecarSecret",         // String (world, GM-only): shared secret sent as a header
+  campaignContext: "campaignContext",     // String (world): GM's campaign blurb fed to the LLM as baseline flavor context
 
   // --- Auditor window (client) ---
   auditorPosition: "auditorPosition",     // Object (client): {left,top}

@@ -332,10 +332,13 @@
 .gllg-route-sel option,.gllg-route-sel optgroup{background:#161d2c;color:var(--ink)}
 .gllg-route-warn{color:var(--behind);font-weight:700}
 
-/* footer actions */
-.gllg-card-actions{display:flex;gap:7px;padding:10px 11px 12px;border-top:1px solid var(--hair)}
-.gllg-card .gllg-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  padding:8px 10px;border-radius:9px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+/* footer actions — wrap to a second row in a narrow chat sidebar instead of
+   spilling past the card edge. Buttons grow to fill a row but keep a sensible
+   minimum so their icon+label never gets clipped. */
+.gllg-card-actions{display:flex;flex-wrap:wrap;gap:7px;padding:10px 11px 12px;border-top:1px solid var(--hair)}
+.gllg-card .gllg-btn{flex:1 1 auto;min-width:84px;max-width:100%;display:inline-flex;align-items:center;
+  justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:8px 9px;border-radius:9px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
   color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--edge);
   transition:background .14s,box-shadow .15s,transform .1s}
 .gllg-card .gllg-btn:hover{background:rgba(255,255,255,.12);box-shadow:0 0 14px var(--glowsoft)}
@@ -344,7 +347,7 @@
 .gllg-card .gllg-btn.gllg-go{color:#0a130d;background:linear-gradient(180deg,#8ee6b5,#5cc88c);border-color:transparent;
   box-shadow:0 4px 16px rgba(103,211,155,.3)}
 .gllg-card .gllg-btn.gllg-go:hover{box-shadow:0 6px 22px rgba(103,211,155,.45)}
-.gllg-card .gllg-btn.gllg-ghost{flex:0 0 auto;color:var(--muted);background:transparent}
+.gllg-card .gllg-btn.gllg-ghost{flex:1 1 auto;min-width:72px;color:var(--muted);background:transparent}
 
 /* materialized + error states */
 .gllg-card.gllg-done .gllg-card-title i{color:var(--ok)}
@@ -353,6 +356,10 @@
 .gllg-mini-tag{font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
   padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--hair)}
 .gllg-card .gllg-err{padding:10px 13px;color:#f0cdc8;font-size:12px}
+
+/* ---- LLM flavor folded into an item's own description (shows on the sheet) ---- */
+.gllg-flavor-block{margin-bottom:.4em}
+.gllg-flavor-block p{margin:.2em 0}
 
 /* ---- plain chat hand-out (quest reward target) ---- */
 .gllg-handout{font:13px/1.45 var(--font);color:var(--ink)}
@@ -395,9 +402,10 @@
 .gllg-genform .gllg-row .gllg-field{flex:1}
 .gllg-genform label{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .gllg-genform .gllg-dim{color:var(--faint);letter-spacing:0;text-transform:none;font-weight:600;font-size:9.5px}
-.gllg-genform select,.gllg-genform input{font:inherit;font-size:13px;color:var(--ink);
+.gllg-genform select,.gllg-genform input,.gllg-genform textarea{font:inherit;font-size:13px;color:var(--ink);
   padding:6px 9px;border-radius:8px;border:1px solid var(--edge);background:#101622}
-.gllg-genform select:focus,.gllg-genform input:focus{outline:none;border-color:var(--tint);box-shadow:0 0 0 3px var(--glowsoft)}
+.gllg-genform textarea{resize:vertical;min-height:42px;line-height:1.4;font-family:var(--font)}
+.gllg-genform select:focus,.gllg-genform input:focus,.gllg-genform textarea:focus{outline:none;border-color:var(--tint);box-shadow:0 0 0 3px var(--glowsoft)}
 /* the native option popup ignores the select's translucent bg — force dark */
 .gllg-genform select option,.gllg-genform select optgroup{background:#161d2c;color:var(--ink)}
 .gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}

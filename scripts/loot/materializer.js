@@ -85,11 +85,8 @@ async function makeLootActor(parcel, proposal) {
   // Hydrate each pick's real item document and embed it.
   const itemData = [];
   for (const pick of parcel.items ?? []) {
-    const doc = await safeFromUuid(pick.uuid);
-    if (!doc) continue;
-    const data = doc.toObject();
-    if (pick.qty && pick.qty > 1) foundry.utils.setProperty(data, "system.quantity", pick.qty);
-    itemData.push(data);
+    const data = await hydratePick(pick);
+    if (data) itemData.push(data);
   }
   if (itemData.length) {
     try { await actor.createEmbeddedDocuments("Item", itemData); }
@@ -128,10 +125,8 @@ async function directToSheets(parcel, recipient, created) {
   for (const pick of parcel.items ?? []) {
     const actor = (pick.forActorId ? game.actors?.get(pick.forActorId) : null) ?? recipient;
     if (!actor) { console.warn(`${MODULE_ID} | no recipient for ${pick.name}; skipped`); continue; }
-    const doc = await safeFromUuid(pick.uuid);
-    if (!doc) continue;
-    const data = doc.toObject();
-    if (pick.qty && pick.qty > 1) foundry.utils.setProperty(data, "system.quantity", pick.qty);
+    const data = await hydratePick(pick);
+    if (!data) continue;
     let bucket = byActor.get(actor.id);
     if (!bucket) byActor.set(actor.id, (bucket = { actor, itemData: [] }));
     bucket.itemData.push(data);
@@ -213,8 +208,11 @@ function buildRuneUpdate(item, axis, tier) {
 /* ------------------------------ chat hand-out ------------------------------ */
 
 async function handOutToChat(parcel, proposal) {
-  const lines = (parcel.items ?? []).map(p =>
-    `<li>@UUID[${p.uuid}]{${p.name}} <span class="gllg-gp">${fmtGp(p.gp)} gp</span></li>`).join("");
+  const lines = (parcel.items ?? []).map(p => {
+    // Custom workshop items have no compendium UUID to @UUID-link to.
+    const label = p.custom ? escapeHtml(p.name) : `@UUID[${p.uuid}]{${p.name}}`;
+    return `<li>${label} <span class="gllg-gp">${fmtGp(p.gp)} gp</span></li>`;
+  }).join("");
   const coins = parcel.currencyGp > 0 ? `<p class="gllg-coins">+ ${fmtGp(parcel.currencyGp)} gp coins</p>` : "";
   const content = `<div class="gllg-handout">
     <h3>${escapeHtml(parcel.label || proposal.label || "Reward")}</h3>
@@ -257,6 +255,60 @@ async function recordToLedger(proposal, recipientId) {
       });
     }
   }
+}
+
+/* ------------------------------ hydration ------------------------------ */
+
+/**
+ * Turn a proposal pick into ready-to-create item data. Two sources:
+ *   - a real compendium UUID (the normal cascade path) → hydrate the document
+ *     and fold the LLM flavor onto its name + description (DESIGN §14);
+ *   - a bespoke `itemData` authored by the LLM workshop (`pick.custom`) → used
+ *     as-is (it already carries its own flavor and name).
+ * Returns null when the source item can't be resolved.
+ */
+async function hydratePick(pick) {
+  let data;
+  if (pick?.custom && pick.itemData) {
+    data = foundry.utils.duplicate(pick.itemData);
+  } else {
+    const doc = await safeFromUuid(pick?.uuid);
+    if (!doc) return null;
+    data = doc.toObject();
+    applyFlavor(data, pick); // compendium-backed picks get their flavor folded in
+  }
+  if (pick.qty && pick.qty > 1) foundry.utils.setProperty(data, "system.quantity", pick.qty);
+  return data;
+}
+
+/**
+ * Fold a pick's LLM flavor/provenance onto a hydrated compendium item, in place.
+ * The flavor + provenance are prepended to the item's description (the original
+ * rules-text is kept intact below a divider), and a reskinned display name —
+ * when the model offered one — replaces the item name with a note of the
+ * original name preserved in the description for reference. Purely cosmetic:
+ * price, level, rarity, and rules are never touched.
+ */
+function applyFlavor(data, pick) {
+  const flavor = pick?.flavor ? String(pick.flavor).trim() : "";
+  const prov = pick?.provenance ? String(pick.provenance).trim() : "";
+  const newName = pick?.flavorName ? String(pick.flavorName).trim() : "";
+  if (!flavor && !prov && !newName) return data;
+
+  const originalName = data.name;
+  const renamed = newName && newName !== originalName;
+  if (renamed) data.name = newName;
+
+  const blocks = [];
+  if (flavor) blocks.push(`<p><em>${escapeHtml(flavor)}</em></p>`);
+  if (prov) blocks.push(`<p><strong>Provenance:</strong> ${escapeHtml(prov)}</p>`);
+  // Always leave a breadcrumb back to the original item (esp. when renamed).
+  blocks.push(`<p><em>${renamed ? `Reskinned from “${escapeHtml(originalName)}”.` : `Original item: ${escapeHtml(originalName)}.`}</em></p>`);
+
+  const header = `<div class="gllg-flavor-block">${blocks.join("")}</div><hr />`;
+  const existing = foundry.utils.getProperty(data, "system.description.value") ?? "";
+  foundry.utils.setProperty(data, "system.description.value", header + existing);
+  return data;
 }
 
 /* ------------------------------ utilities ------------------------------ */

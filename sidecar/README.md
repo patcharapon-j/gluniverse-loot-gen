@@ -101,3 +101,29 @@ curl -s -X POST localhost:7878/flavor \
 ```
 
 You should get `{"flavors":{"p0_0":{"flavor":"…","provenance":"…"}}}`.
+
+## The Loot Workshop (`/workshop`)
+
+The same sidecar also backs the **Loot Workshop** — the GM's `/grill-me` command
+(or the wand/hammer scene-control button). Instead of reskinning compendium
+picks, the workshop has the LLM **author bespoke loot directly**: the module
+POSTs a free-text request and the model returns a JSON array of flavor-first
+item specs (name, type, level, rarity, price, traits, description, flavor,
+provenance). The module turns each into an **editable PF2e `equipment` item**
+behind the usual review-card gate — nothing is created until the GM approves, so
+the worst case is a discarded draft. The same security posture applies (auth
+gate, no shell, timeout, caps).
+
+Both endpoints also accept an optional **`campaign`** field (the GM's *Campaign
+Context* module setting) and a per-request **`notes`** field, so generated flavor
+and custom loot can be grounded in your world.
+
+```bash
+curl -s -X POST localhost:7878/workshop \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"prompt":"a cursed signet ring for the cult vault","count":1,"level":5,
+       "rarity":"rare","campaign":"Grim coastal city ruled by a merchant cabal.",
+       "notes":"recovered from a flooded crypt"}'
+```
+
+You should get `{"items":[{"name":"…","type":"equipment","level":5,"price":…,…}]}`.

@@ -52,7 +52,12 @@
   "GLLG.settings.sidecarSecret.name": "Flavor Sidecar Secret",
   "GLLG.settings.sidecarSecret.hint": "Shared secret sent as the x-gllg-secret header. Must match the GLLG_SECRET the sidecar was started with. GM-only.",
 
+  "GLLG.settings.campaignContext.name": "Campaign Context (for the LLM)",
+  "GLLG.settings.campaignContext.hint": "A short blurb describing your campaign — setting, tone, region, recurring villains, signature themes. Fed to the LLM as baseline context so generated flavor, provenance, and custom workshop loot fit your world. Leave blank to keep flavor generic. Only used when the LLM sidecar is enabled.",
+
   "GLLG.controls.openAuditor": "Loot Auditor",
+  "GLLG.controls.workshop": "Loot Workshop",
+  "GLLG.keybindings.workshop": "Open Loot Workshop",
   "GLLG.controls.generateLoot": "Generate Loot",
   "GLLG.keybindings.toggleAuditor": "Toggle Loot Auditor",
   "GLLG.keybindings.generateLoot": "Generate Loot",
