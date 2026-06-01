@@ -53,7 +53,7 @@ function buildForm(presetPrompt) {
       <div class="gllg-field"><label>Item level <span class="gllg-dim">(blank = party)</span></label><input type="number" name="level" min="0" max="25" placeholder="party level"></div>
       <div class="gllg-field"><label>Rarity</label><select name="rarity">${rarity}</select></div>
     </div>
-    <p class="gllg-dim">The LLM authors flavor-first PF2e items at a fair price for their level. You review, tweak the destination, reroll, or drop them like any other loot. Your campaign context (module settings) is fed in automatically.</p>
+    <p class="gllg-dim">The LLM authors real PF2e items — correct item type, valid traits, a fair price for their level, and any dice/DCs encoded as clickable Foundry rolls. Each is validated against your PF2e build before it appears. You review, tweak the destination, reroll, or drop them like any other loot; your campaign context (module settings) is fed in automatically.</p>
   </div>`;
 }
 

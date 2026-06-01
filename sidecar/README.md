@@ -105,14 +105,21 @@ You should get `{"flavors":{"p0_0":{"flavor":"…","provenance":"…"}}}`.
 ## The Loot Workshop (`/workshop`)
 
 The same sidecar also backs the **Loot Workshop** — the GM's `/grill-me` command
-(or the wand/hammer scene-control button). Instead of reskinning compendium
+(or the hammer scene-control button / Alt+W). Instead of reskinning compendium
 picks, the workshop has the LLM **author bespoke loot directly**: the module
-POSTs a free-text request and the model returns a JSON array of flavor-first
-item specs (name, type, level, rarity, price, traits, description, flavor,
-provenance). The module turns each into an **editable PF2e `equipment` item**
-behind the usual review-card gate — nothing is created until the GM approves, so
-the worst case is a discarded draft. The same security posture applies (auth
-gate, no shell, timeout, caps).
+POSTs a free-text request and the model returns a JSON array of item specs
+(name, type, level, rarity, price, traits, usage, description, flavor,
+provenance — plus optional weapon damageType/die). The model is told to pick the
+**correct PF2e item type** (weapon / armor / consumable / treasure / equipment),
+use real trait slugs, and encode any dice/DCs as **Foundry enrichers**
+(`@Damage[2d6[fire]]`, `@Check[type:reflex|dc:22]`, `[[/r 1d20+5]]`).
+
+The module then **sanitizes traits/usage/damage against the live `CONFIG.PF2E`**
+and **validates each item against the actual PF2e DataModel** (filling defaults,
+dropping anything invalid, falling back to a generic `equipment` item if a richer
+type won't construct) before it ever reaches the review card. Nothing is created
+until the GM approves, so the worst case is a discarded draft. The same security
+posture applies (auth gate, no shell, timeout, caps).
 
 Both endpoints also accept an optional **`campaign`** field (the GM's *Campaign
 Context* module setting) and a per-request **`notes`** field, so generated flavor

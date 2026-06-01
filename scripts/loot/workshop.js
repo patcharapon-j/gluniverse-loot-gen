@@ -86,7 +86,13 @@ async function callWorkshop(params) {
     rarity: params.rarity,
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,
-    party: partyBlurb()
+    party: partyBlurb(),
+    // Live PF2e vocabulary so the model encodes against the actual system.
+    pf2e: {
+      damageTypes: keysOf(cfg().damageTypes),
+      usages: keysOf(cfg().usages),
+      rarities: keysOf(cfg().rarityTraits, ["common", "uncommon", "rare", "unique"])
+    }
   };
 
   const ctrl = new AbortController();
@@ -119,7 +125,7 @@ function buildWorkshopProposal(params, specs) {
   specs.forEach((raw, i) => {
     const spec = sanitizeSpec(raw);
     if (!spec.name) return;
-    const itemData = buildCustomItemData(spec);
+    const itemData = buildCustomItemData(spec, params.prompt);
     picks.push({
       uuid: `gllg-custom-${i}`,   // synthetic id (remove/dedupe in the card)
       custom: true,
@@ -161,60 +167,226 @@ function buildWorkshopProposal(params, specs) {
 }
 
 /**
- * Turn a sanitized spec into ready-to-create PF2e item data. Everything is built
- * as a universal `equipment` document (the most permissive physical-item type,
- * robust across PF2e versions); the LLM's suggested category is noted in the
- * description so the GM can convert it if they want a true consumable/treasure.
- * Flavor + provenance are folded into the description here (custom items carry
- * their own flavor — the Materializer leaves them as-is).
+ * Turn a sanitized spec into ready-to-create item data of the CORRECT PF2e item
+ * type, then validate it against the live PF2e DataModel — which fills the deep
+ * mechanical defaults and cleans anything invalid. Only the core fields are
+ * authored (level, price, rarity, traits, bulk, usage, description); any dice or
+ * DCs ride in the description as Foundry enrichers the model wrote. If a richer
+ * type won't validate, it falls back to a generic `equipment` item so the pick
+ * is never lost. No hardcoded flavor — every player-facing string is authored.
  */
-function buildCustomItemData(spec) {
-  const parts = [];
-  if (spec.flavor) parts.push(`<p><em>${esc(spec.flavor)}</em></p>`);
-  if (spec.description) parts.push(`<p>${esc(spec.description)}</p>`);
-  if (spec.provenance) parts.push(`<p><strong>Provenance:</strong> ${esc(spec.provenance)}</p>`);
-  const cat = spec.type && spec.type !== "equipment" ? `Suggested category: ${esc(spec.type)}. ` : "";
-  parts.push(`<p><em>${cat}Custom item designed in the GLLG Loot Workshop.</em></p>`);
+function buildCustomItemData(spec, prompt) {
+  const description = buildDescription(spec);
+  const flags = { [MODULE_ID]: { workshop: true, prompt: String(prompt ?? "").slice(0, 500) } };
 
-  const rarity = spec.rarity || "common";
-  return {
+  const data = {
+    name: spec.name,
+    type: spec.type,
+    img: defaultImg(spec.type),
+    system: buildSystemForType(spec, description),
+    flags
+  };
+  const validated = validateItemData(data);
+  if (validated) return validated;
+
+  // The richer type wouldn't validate on this PF2e build — degrade to equipment.
+  const fallback = {
     name: spec.name,
     type: "equipment",
-    img: defaultImg(spec.type),
-    system: {
-      description: { value: parts.join(""), gm: "" },
-      level: { value: spec.level ?? 0 },
-      price: { value: { gp: Math.max(0, Number(spec.price) || 0) } },
-      quantity: 1,
-      bulk: { value: bulkToNumber(spec.bulk) },
-      traits: { value: Array.isArray(spec.traits) ? spec.traits.slice(0, 12) : [], rarity, otherTags: [] }
-    }
+    img: defaultImg("equipment"),
+    system: buildSystemForType({ ...spec, type: "equipment" }, description),
+    flags
+  };
+  return validateItemData(fallback) ?? fallback;
+}
+
+/** Assemble the description: authored flavor + body (with enrichers) + provenance. */
+function buildDescription(spec) {
+  const parts = [];
+  if (spec.flavor) parts.push(`<p><em>${esc(spec.flavor)}</em></p>`);
+  // esc() preserves Foundry enrichers ([[/r …]], @Damage[…], @Check[…]) — none of
+  // their characters are HTML-escaped — while neutralizing stray markup.
+  if (spec.description) parts.push(`<p>${esc(spec.description)}</p>`);
+  if (spec.provenance) parts.push(`<p><em>${esc(spec.provenance)}</em></p>`);
+  return parts.join("");
+}
+
+/** Build the system object for a given item type, core fields + safe defaults. */
+function buildSystemForType(spec, description) {
+  const base = {
+    description: { value: description },
+    level: { value: clampInt(spec.level, 0, 25, 0) },
+    price: { value: { gp: Math.max(0, Number(spec.price) || 0) } },
+    quantity: 1,
+    bulk: { value: bulkToNumber(spec.bulk) },
+    traits: { value: validTraitsFor(spec.type, spec.traits), rarity: validRarity(spec.rarity), otherTags: [] }
+  };
+
+  switch (spec.type) {
+    case "weapon":
+      return {
+        ...base,
+        category: "martial", group: "sword", baseItem: null,
+        damage: {
+          dice: 1,
+          die: validDamageDie(spec.damageDie) ?? "d6",
+          damageType: validDamageType(spec.damageType) ?? "slashing",
+          modifier: 0, persistent: null
+        },
+        bonus: { value: 0 }, bonusDamage: { value: 0 }, splashDamage: { value: 0 },
+        range: null, reload: { value: null },
+        runes: { potency: 0, striking: 0, property: [] },
+        usage: { value: mapUsage(spec.usage, "weapon") }
+      };
+    case "armor":
+      // The system fixes armor usage to the armor slot — don't author it.
+      return {
+        ...base,
+        category: "light", group: "leather", baseItem: null,
+        acBonus: 1, strength: null, dexCap: 4, checkPenalty: 0, speedPenalty: 0,
+        runes: { potency: 0, resilient: 0, property: [] }
+      };
+    case "consumable":
+      return {
+        ...base,
+        category: "other",
+        uses: { value: 1, max: 1, autoDestroy: true },
+        damage: null, spell: null, stackGroup: null,
+        usage: { value: mapUsage(spec.usage, "consumable") }
+      };
+    case "treasure":
+      return { ...base, stackGroup: null };
+    case "equipment":
+    default:
+      return { ...base, usage: { value: mapUsage(spec.usage, "equipment") } };
+  }
+}
+
+/**
+ * Construct the data through the live PF2e Item DataModel: this validates it,
+ * fills every default we omitted, and strips invalid fields. Returns the cleaned
+ * source, or null when even cleaning throws (caller falls back). Never persists.
+ */
+function validateItemData(data) {
+  try {
+    const Cls = globalThis.CONFIG?.Item?.documentClass ?? globalThis.Item;
+    if (!Cls) return data; // not running under Foundry — trust the hand-built data
+    const tmp = new Cls(foundry.utils.duplicate(data));
+    const obj = tmp.toObject();
+    if (!obj.img && data.img) obj.img = data.img;
+    obj.flags = foundry.utils.mergeObject(obj.flags ?? {}, data.flags ?? {}, { inplace: false });
+    return obj;
+  } catch (err) {
+    console.warn(`${MODULE_ID} | custom "${data?.type}" item failed PF2e validation`, err);
+    return null;
+  }
+}
+
+/** Defensive client-side sanitize of one raw spec from the sidecar. */
+function sanitizeSpec(raw) {
+  return {
+    name: String(raw?.name ?? "").trim().slice(0, 120),
+    type: normType(raw?.type),
+    level: clampInt(raw?.level, 0, 25, 0),
+    rarity: validRarity(raw?.rarity),
+    price: clampPrice(raw?.price),
+    bulk: raw?.bulk,
+    usage: String(raw?.usage ?? "").slice(0, 60),
+    traits: Array.isArray(raw?.traits) ? raw.traits : [],
+    damageType: raw?.damageType ?? raw?.damagetype ?? null,
+    damageDie: raw?.damageDie ?? raw?.die ?? null,
+    description: cleanText(raw?.description, 1500),
+    flavor: cleanText(raw?.flavor, 280),
+    provenance: cleanText(raw?.provenance, 200)
   };
 }
 
-/** Defensive client-side re-clamp (the sidecar already sanitizes, but trust nothing). */
-function sanitizeSpec(raw) {
-  const type = (() => {
-    const s = String(raw?.type ?? "").toLowerCase();
-    if (s.includes("consum")) return "consumable";
-    if (/(treasure|gem|art|valuable|currency|coin|jewel)/.test(s)) return "treasure";
-    return "equipment";
-  })();
-  const rarity = ["common", "uncommon", "rare", "unique"].includes(String(raw?.rarity ?? "").toLowerCase())
-    ? String(raw.rarity).toLowerCase() : "common";
-  return {
-    name: String(raw?.name ?? "").trim().slice(0, 120),
-    type,
-    level: clampInt(raw?.level, 0, 25, 0),
-    rarity,
-    price: clampPrice(raw?.price),
-    bulk: raw?.bulk,
-    traits: Array.isArray(raw?.traits) ? raw.traits : [],
-    usage: String(raw?.usage ?? "").slice(0, 60),
-    description: String(raw?.description ?? "").slice(0, 1500),
-    flavor: String(raw?.flavor ?? "").slice(0, 280),
-    provenance: String(raw?.provenance ?? "").slice(0, 200)
-  };
+/* ------------------------------ PF2e vocabulary ------------------------------ */
+
+function cfg() { return globalThis.CONFIG?.PF2E ?? {}; }
+function keysOf(obj, fallback = []) {
+  if (obj && typeof obj === "object") {
+    const k = Object.keys(obj);
+    if (k.length) return k;
+  }
+  return fallback;
+}
+
+/** Map any LLM type label to one of the PF2e item types we build. */
+function normType(t) {
+  const s = String(t ?? "").toLowerCase();
+  if (s.includes("weapon")) return "weapon";
+  if (s.includes("armor") || s.includes("armour")) return "armor";
+  if (/(consum|potion|elixir|scroll|\boil\b|talisman|mutagen|poison|snare|drug|ammunition|\bammo\b)/.test(s)) return "consumable";
+  if (/(treasure|gem|jewel|valuable|currency|coin|art object|artwork)/.test(s)) return "treasure";
+  return "equipment"; // rings, staves, wands, worn/wondrous gear, shields, etc.
+}
+
+/** Keep only traits valid for this item type on the live system (drop unknowns). */
+function validTraitsFor(type, traits) {
+  if (!Array.isArray(traits)) return [];
+  const c = cfg();
+  const pool = type === "weapon" ? c.weaponTraits
+    : type === "armor" ? c.armorTraits
+    : type === "consumable" ? c.consumableTraits
+    : c.equipmentTraits;
+  const valid = keysOf(pool);
+  const set = valid.length ? new Set(valid) : null; // null = config absent → don't over-filter
+  const out = [];
+  for (const t of traits) {
+    const slug = normalizeSlug(t);
+    if (slug && (!set || set.has(slug))) out.push(slug);
+  }
+  return [...new Set(out)].slice(0, 16);
+}
+
+function validRarity(r) {
+  const set = new Set(keysOf(cfg().rarityTraits, ["common", "uncommon", "rare", "unique"]));
+  const s = String(r ?? "").toLowerCase();
+  return set.has(s) ? s : "common";
+}
+
+function validDamageType(t) {
+  const set = new Set(keysOf(cfg().damageTypes));
+  const s = normalizeSlug(t);
+  if (!set.size) return s || null; // no config → trust the model
+  return set.has(s) ? s : null;
+}
+
+const DAMAGE_DICE = new Set(["d4", "d6", "d8", "d10", "d12"]);
+function validDamageDie(d) {
+  const s = String(d ?? "").toLowerCase().trim();
+  return DAMAGE_DICE.has(s) ? s : null;
+}
+
+const WEAPON_USAGES = new Set(["worngloves", "held-in-one-hand", "held-in-one-plus-hands", "held-in-two-hands"]);
+/** Resolve a usage to a slug the live system accepts; default safely if not. */
+function mapUsage(usage, type) {
+  const valid = new Set(keysOf(cfg().usages));
+  let candidate = normalizeSlug(usage);
+  if (!candidate || (valid.size && !valid.has(candidate)) || (type === "weapon" && !WEAPON_USAGES.has(candidate))) {
+    candidate = pickUsage(String(usage ?? "").toLowerCase(), type);
+  }
+  if (valid.size && !valid.has(candidate)) return valid.has("held-in-one-hand") ? "held-in-one-hand" : keysOf(cfg().usages)[0];
+  return candidate;
+}
+function pickUsage(u, type) {
+  const twoHand = /\b(two|both|2)[ -]?hand/.test(u);
+  if (type === "weapon") return twoHand ? "held-in-two-hands" : "held-in-one-hand";
+  if (/glove/.test(u)) return "worngloves";
+  if (/\b(worn|ring|amulet|necklace|cloak|belt|boots|gloves|helm|hat|crown|mask|cape|bracers|circlet)\b/.test(u)) return "worn";
+  if (twoHand) return "held-in-two-hands";
+  return "held-in-one-hand";
+}
+
+function normalizeSlug(s) {
+  return String(s ?? "").toLowerCase().trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+function cleanText(s, max) {
+  return String(s ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 /* ------------------------------ helpers ------------------------------ */
@@ -236,9 +408,13 @@ function partyBlurb() {
 }
 
 function defaultImg(type) {
-  if (type === "consumable") return "icons/svg/tankard.svg";
-  if (type === "treasure") return "icons/svg/coins.svg";
-  return "icons/svg/item-bag.svg";
+  switch (type) {
+    case "weapon": return "icons/svg/sword.svg";
+    case "armor": return "icons/svg/statue.svg";
+    case "consumable": return "icons/svg/tankard.svg";
+    case "treasure": return "icons/svg/coins.svg";
+    default: return "icons/svg/item-bag.svg";
+  }
 }
 
 function bulkToNumber(b) {
