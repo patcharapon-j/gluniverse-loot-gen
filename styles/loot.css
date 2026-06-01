@@ -413,6 +413,24 @@
 .gllg-genform select option,.gllg-genform select optgroup{background:#161d2c;color:var(--ink)}
 .gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}
 
+/* ---- LLM "working…" progress card (whispered while the sidecar runs) ---- */
+.gllg-card.gllg-progress .gllg-card-title i{color:var(--tint)}
+.gllg-progress-body{display:flex;align-items:center;gap:10px;padding:11px 13px 13px}
+.gllg-progress-body .gllg-spinner i{color:var(--tint);font-size:16px;filter:drop-shadow(0 0 10px var(--glowsoft))}
+.gllg-progress-text{font-size:11.5px;color:var(--muted);line-height:1.4}
+
+/* ---- GM-only icon-generation prompt folded into an item description ---- */
+.gllg-icon-note{margin:.5em 0 .2em;padding:7px 10px;border-radius:8px;
+  border:1px solid rgba(155,179,224,.28);background:rgba(107,134,214,.08)}
+.gllg-icon-note .gllg-icon-note-head{margin:0 0 .25em;font-size:.92em;color:#9bb3e0}
+.gllg-icon-note .gllg-icon-note-head i{margin-right:.35em}
+.gllg-icon-note .gllg-icon-note-body{margin:0;font-size:.92em;line-height:1.4;font-style:italic;opacity:.92}
+
+/* ---- roomy multi-line campaign-context field in the settings window ---- */
+textarea.gllg-settings-textarea{width:100%;min-height:7.5em;resize:vertical;
+  font-family:inherit;line-height:1.45;padding:6px 8px}
+
 @media (prefers-reduced-motion: reduce){
   .gllg-card,.gllg-card *{animation:none !important;transition:none !important}
+  .gllg-progress-body .gllg-spinner i,.gllg-card .fa-beat-fade{animation:none !important}
 }

@@ -44,6 +44,7 @@ export async function decorateProposal(proposal, { force = false } = {}) {
     level: proposal.level,
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: String(proposal.request?.meta?.extraContext ?? "").trim(),
+    rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
     tags: pickTags(proposal.request?.tags),
     items: targets.map(({ id, pick }) => ({
       id,
@@ -73,6 +74,8 @@ export async function decorateProposal(proposal, { force = false } = {}) {
     if (f.flavor) pick.flavor = clean(f.flavor);
     if (f.provenance) pick.provenance = clean(f.provenance);
     if (f.name) pick.flavorName = clean(f.name); // reskinned name (cosmetic; uuid unchanged)
+    const iconHint = f.iconPrompt ?? f.icon ?? f.iconHint;
+    if (iconHint) pick.iconHint = clean(iconHint); // GM-only icon-generation prompt
   }
   return proposal;
 }

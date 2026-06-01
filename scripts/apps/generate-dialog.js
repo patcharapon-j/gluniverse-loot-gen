@@ -13,8 +13,9 @@ import { CONTEXT, THREAT, CACHE_TIER, QUEST_TIER } from "../const.js";
 import { BIOMES, FACTIONS } from "../loot/vocab.js";
 import { buildRequest } from "../loot/adapters.js";
 import { proposeLoot } from "../loot/cascade.js";
-import { decorateProposal } from "../loot/decorator.js";
+import { decorateProposal, flavorEnabled } from "../loot/decorator.js";
 import { postReviewCard } from "./review-card.js";
+import { beginProgress, endProgress } from "./progress.js";
 
 export async function openGenerateDialog(presetContext) {
   const DialogV2 = foundry.applications?.api?.DialogV2;
@@ -160,7 +161,15 @@ async function runGeneration(r) {
   }
 
   const proposal = await proposeLoot(request);
-  await decorateProposal(proposal); // optional LLM flavor; no-op + graceful if disabled
+  // LLM flavor can take a few seconds — show a working card while it runs (only
+  // when flavor is actually enabled; the cascade itself is instant).
+  if (flavorEnabled()) {
+    const progress = await beginProgress({ title: "Adding LLM flavor…", detail: proposal.label || "Loot proposal" });
+    try { await decorateProposal(proposal); }   // optional LLM flavor; graceful if it fails
+    finally { await endProgress(progress); }
+  } else {
+    await decorateProposal(proposal); // no-op when disabled
+  }
   await postReviewCard(proposal);
   ui.notifications?.info(`GLLG: loot proposal posted to chat (${proposal.itemCount} items, ${Math.round(proposal.totalGp)} gp).`);
 }

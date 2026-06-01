@@ -20,6 +20,7 @@ export const SETTINGS = {
   partyActorId: "partyActorId",           // String (world): explicit party actor override (else auto-detect)
   shoppingAccess: "shoppingAccess",       // String (world): "free" | "limited" | "none" — core/unusual baseline
   variantABP: "variantABP",               // Boolean (world): campaign runs Automatic Bonus Progression
+  proficiencyWithoutLevel: "proficiencyWithoutLevel", // Boolean (world): campaign uses the Proficiency Without Level variant (drops level from modifiers/DCs)
   driftTolerancePct: "driftTolerancePct", // Number (world): +/- % band before wealth-drift flags
   heirloomMode: "heirloomMode",           // Boolean (world): fundamental runes awaken in-place on signature items
   heirloomArmor: "heirloomArmor",         // Boolean (world): also awaken armor fundamentals (else weapons only)

@@ -14,6 +14,7 @@
 
 import { MODULE_ID, SETTINGS, TARGET } from "../const.js";
 import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import { iconNoteHtml } from "./icon-note.js";
 
 const REQUEST_TIMEOUT_MS = 45000; // workshop authoring runs longer than flavor
 
@@ -87,6 +88,9 @@ async function callWorkshop(params) {
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,
     party: partyBlurb(),
+    // Campaign variant rules that change item math — the model adjusts modifiers
+    // and DCs to suit (e.g. Proficiency Without Level uses flatter numbers).
+    rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
     // Live PF2e vocabulary so the model encodes against the actual system.
     pf2e: {
       damageTypes: keysOf(cfg().damageTypes),
@@ -213,8 +217,12 @@ function buildDescription(spec) {
 
 /** Build the system object for a given item type, core fields + safe defaults. */
 function buildSystemForType(spec, description) {
+  const gmNote = iconNoteHtml({
+    name: spec.name, type: spec.type, rarity: spec.rarity,
+    traits: spec.traits, flavor: spec.flavor, hint: spec.iconHint
+  });
   const base = {
-    description: { value: description },
+    description: { value: description, gm: gmNote },
     level: { value: clampInt(spec.level, 0, 25, 0) },
     price: { value: { gp: Math.max(0, Number(spec.price) || 0) } },
     quantity: 1,
@@ -297,7 +305,8 @@ function sanitizeSpec(raw) {
     damageDie: raw?.damageDie ?? raw?.die ?? null,
     description: cleanText(raw?.description, 1500),
     flavor: cleanText(raw?.flavor, 280),
-    provenance: cleanText(raw?.provenance, 200)
+    provenance: cleanText(raw?.provenance, 200),
+    iconHint: cleanText(raw?.iconPrompt ?? raw?.icon ?? raw?.iconHint, 240)
   };
 }
 

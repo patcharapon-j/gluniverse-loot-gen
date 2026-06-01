@@ -7,6 +7,7 @@
 
 import { runWorkshop, workshopEnabled } from "../loot/workshop.js";
 import { postReviewCard } from "./review-card.js";
+import { beginProgress, endProgress } from "./progress.js";
 
 export async function openWorkshopDialog(presetPrompt = "") {
   const DialogV2 = foundry.applications?.api?.DialogV2;
@@ -37,7 +38,13 @@ export async function openWorkshopDialog(presetPrompt = "") {
   if (!result || result === "cancel") return;
   if (!result.prompt) return ui.notifications?.warn("GLLG: describe the loot you want first.");
 
-  const proposal = await runWorkshop(result);
+  const progress = await beginProgress({ title: "Forging custom loot…", detail: "Loot Workshop" });
+  let proposal;
+  try {
+    proposal = await runWorkshop(result);
+  } finally {
+    await endProgress(progress);
+  }
   if (proposal) await postReviewCard(proposal);
 }
 
@@ -54,7 +61,7 @@ function buildForm(presetPrompt) {
       <div class="gllg-field"><label>Item level <span class="gllg-dim">(blank = party)</span></label><input type="number" name="level" min="0" max="25" placeholder="party level"></div>
       <div class="gllg-field"><label>Rarity</label><select name="rarity">${rarity}</select></div>
     </div>
-    <p class="gllg-dim">The LLM authors real PF2e items — correct item type, valid traits, a fair price for their level, and any dice/DCs encoded as clickable Foundry rolls. Each is validated against your PF2e build before it appears. You review, tweak the destination, reroll, or drop them like any other loot; your campaign context (module settings) is fed in automatically.</p>
+    <p class="gllg-dim">The LLM authors real PF2e items — correct item type, valid traits, a fair price for their level, and any dice/DCs encoded as clickable Foundry rolls (scaled to your variant rules, e.g. Proficiency Without Level). Each is validated against your PF2e build before it appears, and carries a GM-only icon prompt in its notes for quick art. You review, tweak the destination, reroll, or drop them like any other loot; your campaign context (module settings) is fed in automatically.</p>
   </div>`;
 }
 

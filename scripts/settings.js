@@ -23,6 +23,12 @@ export function registerSettings() {
     scope: "world", config: true, type: Boolean, default: false
   });
 
+  reg(SETTINGS.proficiencyWithoutLevel, {
+    name: "GLLG.settings.proficiencyWithoutLevel.name",
+    hint: "GLLG.settings.proficiencyWithoutLevel.hint",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
   reg(SETTINGS.driftTolerancePct, {
     name: "GLLG.settings.driftTolerance.name",
     hint: "GLLG.settings.driftTolerance.hint",
@@ -84,5 +90,31 @@ export function registerSettings() {
   });
   reg(SETTINGS.auditorHidden, {
     scope: "client", config: false, type: Boolean, default: false
+  });
+
+  registerSettingsFormEnhancers();
+}
+
+/**
+ * Foundry renders String settings as single-line text inputs. The campaign
+ * context is a multi-line blurb (setting, tone, recurring villains…), so swap its
+ * input for a roomy <textarea> whenever the settings window renders. Idempotent:
+ * skips inputs that are already textareas.
+ */
+function registerSettingsFormEnhancers() {
+  Hooks.on("renderSettingsConfig", (_app, html) => {
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    if (!root?.querySelector) return;
+    const input = root.querySelector(`[name="${MODULE_ID}.${SETTINGS.campaignContext}"]`);
+    if (!input || input.tagName === "TEXTAREA") return;
+
+    const ta = document.createElement("textarea");
+    ta.name = input.name;
+    ta.value = input.value ?? "";
+    ta.rows = 6;
+    if (input.id) ta.id = input.id;
+    if (input.dataset?.dtype) ta.dataset.dtype = input.dataset.dtype;
+    ta.classList.add("gllg-settings-textarea");
+    input.replaceWith(ta);
   });
 }

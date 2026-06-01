@@ -15,6 +15,7 @@ import {
 } from "../loot/item-selector.js";
 import { decorateProposal, flavorEnabled } from "../loot/decorator.js";
 import { resolveParty } from "../pf2e/actor-reader.js";
+import { beginProgress, endProgress } from "./progress.js";
 
 const TARGET_LABELS = {
   [TARGET.LOOT_ACTOR]: "Loot actor (chest)",
@@ -108,19 +109,30 @@ async function doReroll(message, proposal) {
   // re-runs the cascade against the same request.
   if (proposal.workshop) {
     const { rerunWorkshop } = await import("../loot/workshop.js");
-    const next = await rerunWorkshop(proposal);
+    const progress = await beginProgress({ title: "Re-forging custom loot…", detail: "Loot Workshop" });
+    let next;
+    try { next = await rerunWorkshop(proposal); }
+    finally { await endProgress(progress); }
     if (!next) return; // notified inside
     return message.update({ content: renderCard(next), flags: { [MODULE_ID]: { proposal: next } } });
   }
   const next = await proposeLoot(proposal.request);
-  await decorateProposal(next); // re-flavor the fresh picks (no-op if disabled)
+  if (flavorEnabled()) {
+    const progress = await beginProgress({ title: "Adding LLM flavor…", detail: next.label || "Loot proposal" });
+    try { await decorateProposal(next); }   // re-flavor the fresh picks
+    finally { await endProgress(progress); }
+  } else {
+    await decorateProposal(next); // no-op if disabled
+  }
   await message.update({ content: renderCard(next), flags: { [MODULE_ID]: { proposal: next } } });
 }
 
 /** Re-request LLM flavor for the current picks without changing the loot. */
 async function doReflavor(message, proposal) {
   if (!flavorEnabled()) return ui.notifications?.warn("GLLG: LLM flavor is disabled (see module settings).");
-  await decorateProposal(proposal, { force: true });
+  const progress = await beginProgress({ title: "Re-flavoring…", detail: proposal.label || "Loot proposal" });
+  try { await decorateProposal(proposal, { force: true }); }
+  finally { await endProgress(progress); }
   await message.update({ content: renderCard(proposal), flags: { [MODULE_ID]: { proposal } } });
   ui.notifications?.info("GLLG: re-flavored the proposal.");
 }
