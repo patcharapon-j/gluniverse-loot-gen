@@ -119,6 +119,7 @@ GM-review chat card is always the gate; sinks are context-aware: **Loot actor** 
 - **Form: named themed components** ("frost-giant marrow," "dragon scale") from the source tags.
 - **Depth: plain gp-valued by default** (usable for any recipe, always balance-safe), with **optional** "unlocks/discounts this themed recipe" hook for signature crafts. No mandatory new rules.
 - **Acquisition: optional harvest check** (Nature/Survival/Crafting vs. level DC; crit = bonus, fail = spoiled), **default auto-include**.
+- **Implemented via the Loot Workshop:** the GM selects creature tokens and the workshop authors loot **found on / harvested from** them (carried gear, keepsakes, or monster parts), level/count defaulting from the creatures, provenance attributed per source, and harvested parts carrying the harvest check above.
 
 ## 14. LLM provenance layer (`claude -p`)
 
