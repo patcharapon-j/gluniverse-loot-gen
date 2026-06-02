@@ -80,6 +80,15 @@ export function registerSettings() {
     scope: "world", config: true, type: String, default: ""
   });
 
+  // Free text so it never goes stale as new Claude models ship: accepts a CLI
+  // alias ("opus"/"sonnet"/"haiku") or a full id ("claude-sonnet-4-6"). Blank
+  // means "let the sidecar decide" (its GLLG_MODEL env / the claude CLI default).
+  reg(SETTINGS.llmModel, {
+    name: "GLLG.settings.llmModel.name",
+    hint: "GLLG.settings.llmModel.hint",
+    scope: "world", config: true, type: String, default: ""
+  });
+
   reg(SETTINGS.campaignContext, {
     name: "GLLG.settings.campaignContext.name",
     hint: "GLLG.settings.campaignContext.hint",

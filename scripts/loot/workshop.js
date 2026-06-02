@@ -129,6 +129,8 @@ async function callWorkshop(params) {
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,
     party: partyBlurb(),
+    // Which Claude model the sidecar should use (blank → sidecar's own default).
+    model: String(safeSetting(SETTINGS.llmModel, "") ?? "").trim(),
     // Campaign variant rules that change item math — the model adjusts modifiers
     // and DCs to suit (e.g. Proficiency Without Level uses flatter numbers).
     rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
@@ -156,8 +158,9 @@ async function callWorkshop(params) {
     if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
     const data = await res.json();
     const items = Array.isArray(data?.items) ? data.items : [];
+    const modelNote = payload.model ? ` · model ${payload.model}` : "";
     logLlmCall({ kind: "workshop", endpoint: "/workshop", ok: true, status: res.status,
-      ms: Date.now() - t0, detail: `requested ${params.count}, authored ${items.length}` });
+      ms: Date.now() - t0, detail: `requested ${params.count}, authored ${items.length}${modelNote}` });
     return items;
   } catch (err) {
     logLlmCall({ kind: "workshop", endpoint: "/workshop", ok: false, ms: Date.now() - t0,

@@ -45,6 +45,8 @@ export async function decorateProposal(proposal, { force = false } = {}) {
     level: proposal.level,
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: String(proposal.request?.meta?.extraContext ?? "").trim(),
+    // Which Claude model the sidecar should use (blank → sidecar's own default).
+    model: String(safeSetting(SETTINGS.llmModel, "") ?? "").trim(),
     rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
     tags: pickTags(proposal.request?.tags),
     items: targets.map(({ id, pick }) => ({
@@ -91,6 +93,7 @@ async function callSidecar(payload) {
 
   const t0 = Date.now();
   const itemCount = Array.isArray(payload.items) ? payload.items.length : 0;
+  const modelNote = payload.model ? ` · model ${payload.model}` : "";
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -106,7 +109,7 @@ async function callSidecar(payload) {
     if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
     const data = await res.json();
     logLlmCall({ kind: "flavor", endpoint: "/flavor", ok: true, status: res.status,
-      ms: Date.now() - t0, detail: `${itemCount} item(s) flavored` });
+      ms: Date.now() - t0, detail: `${itemCount} item(s) flavored${modelNote}` });
     // Accept { flavors: {id:…} } or a bare map / array keyed by id.
     if (data?.flavors) return data.flavors;
     if (Array.isArray(data)) return Object.fromEntries(data.filter(d => d?.id).map(d => [d.id, d]));

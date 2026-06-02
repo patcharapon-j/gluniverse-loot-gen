@@ -83,7 +83,7 @@ Generate a hoard; the review card shows an italic flavor line per item and a
 | `GLLG_HOST` | `127.0.0.1` | bind address (keep loopback) |
 | `GLLG_PORT` | `7878` | bind port |
 | `GLLG_CLAUDE_BIN` | `claude` | path to the Claude CLI |
-| `GLLG_MODEL` | *(CLI default)* | optional `--model` override |
+| `GLLG_MODEL` | *(CLI default)* | default `--model` when a request doesn't pick one; the module's **Claude Model** setting overrides it per request |
 | `GLLG_TIMEOUT_MS` | `45000` | base wall-clock cap per call (flavor / one workshop item) |
 | `GLLG_TIMEOUT_PER_ITEM_MS` | `30000` | extra time per additional workshop item |
 | `GLLG_MAX_TIMEOUT_MS` | `240000` | hard ceiling for a workshop batch |

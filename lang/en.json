@@ -58,6 +58,9 @@
   "GLLG.settings.sidecarSecret.name": "Flavor Sidecar Secret",
   "GLLG.settings.sidecarSecret.hint": "Shared secret sent as the x-gllg-secret header. Must match the GLLG_SECRET the sidecar was started with. GM-only.",
 
+  "GLLG.settings.llmModel.name": "Claude Model",
+  "GLLG.settings.llmModel.hint": "Which Claude model the sidecar uses for flavor and workshop generation. Accepts a CLI alias (opus, sonnet, haiku) or a full model id (e.g. claude-sonnet-4-6). Leave blank to use the sidecar's own default (its GLLG_MODEL, or the claude CLI default). The model must be available to the Claude login the sidecar runs under.",
+
   "GLLG.settings.campaignContext.name": "Campaign Context (for the LLM)",
   "GLLG.settings.campaignContext.hint": "A short blurb describing your campaign — setting, tone, region, recurring villains, signature themes. Fed to the LLM as baseline context so generated flavor, provenance, and custom workshop loot fit your world. Leave blank to keep flavor generic. Only used when the LLM sidecar is enabled.",
 
