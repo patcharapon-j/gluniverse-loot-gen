@@ -28,7 +28,7 @@ const HOST = process.env.GLLG_HOST || "127.0.0.1";
 const PORT = Number(process.env.GLLG_PORT || process.env.PORT || 7878);
 const SECRET = process.env.GLLG_SECRET || "";
 const CLAUDE_BIN = process.env.GLLG_CLAUDE_BIN || "claude";
-const MODEL = process.env.GLLG_MODEL || "";              // optional --model override
+const MODEL = process.env.GLLG_MODEL || "";              // default --model when a request doesn't pick one
 // Base wall-clock cap for a single claude call (flavor, or one workshop item).
 const TIMEOUT_MS = Number(process.env.GLLG_TIMEOUT_MS || 45000);
 // Workshop authoring scales with the number of items requested — generating a
@@ -64,12 +64,17 @@ const server = createServer((req, res) => {
       try { payload = JSON.parse(raw || "{}"); }
       catch { return json(res, 400, { error: "invalid JSON body" }); }
 
+      // The module may pick the Claude model per request; otherwise fall back to
+      // the server's GLLG_MODEL default. sanitizeModel keeps it from smuggling an
+      // extra CLI flag in through the model string.
+      const model = sanitizeModel(payload.model) || MODEL;
+
       // /workshop — the GM asks the LLM to author bespoke custom loot directly.
       if (isWorkshop) {
         try {
           const count = clampInt(payload.count, 1, 8, 1);
           const timeout = Math.min(MAX_TIMEOUT_MS, TIMEOUT_MS + (count - 1) * TIMEOUT_PER_ITEM_MS);
-          const items = await runClaude(buildWorkshopPrompt(payload), parseWorkshopItems, timeout);
+          const items = await runClaude(buildWorkshopPrompt(payload), parseWorkshopItems, timeout, model);
           return json(res, 200, { items: items ?? [] });
         } catch (err) {
           console.error("GLLG sidecar | workshop claude failed:", err?.message || err);
@@ -82,7 +87,7 @@ const server = createServer((req, res) => {
       if (!items.length) return json(res, 200, { flavors: {} });
 
       try {
-        const flavors = await runClaude(buildPrompt(payload, items));
+        const flavors = await runClaude(buildPrompt(payload, items), parseFlavorMap, TIMEOUT_MS, model);
         return json(res, 200, { flavors: flavors ?? {} });
       } catch (err) {
         console.error("GLLG sidecar | claude failed:", err?.message || err);
@@ -109,10 +114,10 @@ server.listen(PORT, HOST, () => {
  * whose `.result` holds the model's text; `parse` turns that text into the
  * endpoint's shape (a flavor map for /flavor, an item array for /workshop).
  */
-function runClaude(prompt, parse = parseFlavorMap, timeout = TIMEOUT_MS) {
+function runClaude(prompt, parse = parseFlavorMap, timeout = TIMEOUT_MS, model = MODEL) {
   return new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "json"];
-    if (MODEL) args.push("--model", MODEL);
+    if (model) args.push("--model", model);
 
     const child = execFile(
       CLAUDE_BIN, args,
@@ -126,6 +131,18 @@ function runClaude(prompt, parse = parseFlavorMap, timeout = TIMEOUT_MS) {
     child.stdin.on("error", () => { /* claude may close stdin early; ignore */ });
     child.stdin.end(prompt, "utf8");
   });
+}
+
+/**
+ * Validate a caller-supplied model id before it becomes a `--model` argument.
+ * Model ids/aliases are plain tokens (e.g. "sonnet", "claude-sonnet-4-6"), so we
+ * accept only [A-Za-z0-9._-] and require an alphanumeric first char — that bars a
+ * leading "-" from being read as another CLI flag. Anything else returns "" so
+ * the caller falls back to the server default (GLLG_MODEL) rather than guessing.
+ */
+function sanitizeModel(v) {
+  const s = typeof v === "string" ? v.trim() : "";
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(s) ? s : "";
 }
 
 /** Pull the model's JSON map out of claude's JSON envelope (defensively). */

@@ -25,6 +25,8 @@ Environment=GLLG_HOST=127.0.0.1
 Environment=GLLG_PORT=7878
 Environment=GLLG_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_STRING
 Environment=GLLG_CLAUDE_BIN=claude
+# Default model when a request doesn't pick one. The module's "Claude Model"
+# setting overrides this per request; leave unset to use the claude CLI default.
 # Environment=GLLG_MODEL=claude-sonnet-4-6
 # Base per-call cap (flavor / a single workshop item). Workshop batches add
 # GLLG_TIMEOUT_PER_ITEM_MS per extra item, capped at GLLG_MAX_TIMEOUT_MS — this

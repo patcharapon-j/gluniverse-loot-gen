@@ -96,6 +96,7 @@ See [DESIGN.md](DESIGN.md) for the full 17-section specification and build order
 | LLM Flavor & Provenance | off | Request batched flavor from the `claude -p` sidecar |
 | Flavor Sidecar URL | `/gllg-sidecar` | Same-origin path to the sidecar (behind nginx) |
 | Flavor Sidecar Secret | *(empty)* | Shared secret; must match the sidecar's `GLLG_SECRET` |
+| Claude Model | *(sidecar default)* | Model the sidecar uses — alias (`opus`/`sonnet`/`haiku`) or full id; blank uses the sidecar's `GLLG_MODEL` / CLI default |
 
 ---
 
