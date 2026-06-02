@@ -2,7 +2,7 @@
   "id": "gluniverse-loot-gen",
   "title": "GLUniverse — Loot Generator",
   "description": "A premium, dynamic PF2e loot generator with a live gear health-check. Budget-aware, source-themed, treadmill-free loot — plus an auditor that reads your party's sheets and tells you who's ahead, behind, or missing fundamentals.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "compatibility": {
     "minimum": "13",
     "verified": "14",
@@ -53,5 +53,5 @@
   },
   "url": "https://github.com/patcharapon-j/gluniverse-loot-gen",
   "manifest": "https://github.com/patcharapon-j/gluniverse-loot-gen/releases/latest/download/module.json",
-  "download": "https://github.com/patcharapon-j/gluniverse-loot-gen/releases/download/v1.4.0/module.zip"
+  "download": "https://github.com/patcharapon-j/gluniverse-loot-gen/releases/download/v1.4.1/module.zip"
 }
