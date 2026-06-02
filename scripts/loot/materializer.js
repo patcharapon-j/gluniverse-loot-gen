@@ -44,8 +44,8 @@ export async function materialize(proposal) {
     const work = { ...parcel, items: normal };
     const target = work.target ?? proposal.target ?? TARGET.LOOT_ACTOR;
     if (target === TARGET.CHAT_CARD) {
-      await handOutToChat(work, proposal);
-      created.push({ type: "chat", name: work.label });
+      const msg = await handOutToChat(work, proposal);
+      created.push({ type: "chat", name: work.label, uuid: msg?.uuid });
     } else if (target === TARGET.DIRECT) {
       await directToSheets(work, recipient, created);
     } else {
@@ -68,13 +68,29 @@ function resolveRecipient(proposal) {
 
 /* ------------------------------ loot actor ------------------------------ */
 
+const LOOT_FOLDER_NAME = "Loot Gen";
+
+/** Get (or lazily create) the "Loot Gen" Actor folder so chests don't litter root. */
+async function lootFolder() {
+  try {
+    const existing = game.folders?.find(f => f.type === "Actor" && f.name === LOOT_FOLDER_NAME);
+    if (existing) return existing;
+    return await Folder.create({ name: LOOT_FOLDER_NAME, type: "Actor", color: "#7a5cff" });
+  } catch (err) {
+    console.warn(`${MODULE_ID} | could not get/create the "${LOOT_FOLDER_NAME}" folder; placing at root`, err);
+    return null;
+  }
+}
+
 async function makeLootActor(parcel, proposal) {
   let actor;
   try {
+    const folder = await lootFolder();
     actor = await Actor.create({
       name: parcel.label || proposal.label || "Loot",
       type: "loot",
       img: "icons/containers/chest/chest-worn-oak-tan.webp",
+      folder: folder?.id ?? null,
       flags: { [MODULE_ID]: { proposalId: proposal.id, context: proposal.context } }
     });
   } catch (err) {
@@ -136,7 +152,7 @@ async function directToSheets(parcel, recipient, created) {
   for (const { actor, itemData } of byActor.values()) {
     try {
       await actor.createEmbeddedDocuments("Item", itemData);
-      created.push({ type: "direct", name: `${itemData.length} item(s) → ${actor.name}` });
+      created.push({ type: "direct", name: `${itemData.length} item(s) → ${actor.name}`, uuid: actor.uuid });
     } catch (err) {
       console.error(`${MODULE_ID} | failed to grant items to ${actor.name}`, err);
     }
@@ -169,7 +185,7 @@ async function awaken(pick) {
   if (!update) return null;
   try {
     await item.update(update);
-    return { type: "heirloom", name: `${pick.name} → ${item.name} (${actor.name})` };
+    return { type: "heirloom", name: `${pick.name} → ${item.name} (${actor.name})`, uuid: item.uuid };
   } catch (err) {
     console.error(`${MODULE_ID} | failed to awaken ${pick.name} in ${item.name}`, err);
     return null;
@@ -221,8 +237,8 @@ async function handOutToChat(parcel, proposal) {
     <p class="gllg-hint">Drag items onto a sheet to assign.</p>
   </div>`;
   try {
-    await ChatMessage.create({ content, whisper: ChatMessage.getWhisperRecipients?.("GM") ?? [] });
-  } catch (err) { console.error(`${MODULE_ID} | hand-out chat failed`, err); }
+    return await ChatMessage.create({ content, whisper: ChatMessage.getWhisperRecipients?.("GM") ?? [] });
+  } catch (err) { console.error(`${MODULE_ID} | hand-out chat failed`, err); return null; }
 }
 
 /* ------------------------------ ledger ------------------------------ */

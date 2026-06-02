@@ -289,8 +289,12 @@ function renderItem(parcel, it) {
 }
 
 function renderDone(p, res) {
-  const list = (res.created ?? []).map(c =>
-    `<li>${esc(c.name)} <span class="gllg-mini-tag">${esc(c.type)}</span></li>`).join("");
+  // Entries that carry a document uuid become clickable @UUID content links
+  // (open the actor/item/message on click); the rest stay as plain labels.
+  const list = (res.created ?? []).map(c => {
+    const label = c.uuid ? `@UUID[${c.uuid}]{${c.name}}` : esc(c.name);
+    return `<li>${label} <span class="gllg-mini-tag">${esc(c.type)}</span></li>`;
+  }).join("");
   return `<div class="gllg-card gllg-done" data-proposal-id="${esc(p.id)}">
     <header class="gllg-card-head">
       <div class="gllg-card-title"><i class="fa-solid fa-circle-check"></i> Loot materialized</div>

@@ -40,7 +40,9 @@ Then enable it in a world running the **Pathfinder 2e** system.
 - **GM review card** — every hoard is gated: reroll, swap, remove, and choose the
   destination before anything is created.
 - **Multi-target materialization** — Loot actor (chest), chat hand-out, or direct to PC
-  sheets. Writes valid PF2e item data (real compendium UUIDs, prices intact).
+  sheets. Writes valid PF2e item data (real compendium UUIDs, prices intact). Loot chests
+  land in a **Loot Gen** folder (not at root), and the "materialized" confirmation links
+  straight to each created actor / item / hand-out so you can click through to open it.
 - **Rune-etched weapon & armor** *(on by default)* — weapon and armor drops come
   **pre-etched with an appropriate, legal, RAW-priced rune set** (potency, striking/
   resilient, and eligible property runes) sized to the party level and the find's theme.
