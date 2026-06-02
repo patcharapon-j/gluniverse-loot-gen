@@ -17,6 +17,7 @@ import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
 import { iconNoteHtml } from "./icon-note.js";
 import { logLlmCall } from "./llm-log.js";
 import { sourcesLabel } from "./creature-sources.js";
+import { sanitizeRuneSet, buildRuneSet, runePriceOf, runeSetNames, themeRuneSlugs } from "../pf2e/runes.js";
 
 // Authoring scales with how many items the model writes — a single item is
 // quick, but a batch can take a while. The cap keeps a runaway request bounded.
@@ -181,7 +182,8 @@ function buildWorkshopProposal(params, specs) {
   specs.forEach((raw, i) => {
     const spec = sanitizeSpec(raw);
     if (!spec.name) return;
-    const itemData = buildCustomItemData(spec, params.prompt, params.sources);
+    const { data: itemData, runeInfo } = buildCustomItemData(spec, params.prompt, params.sources);
+    const gp = round2(runeInfo?.totalGp ?? spec.price);
     picks.push({
       uuid: `gllg-custom-${i}`,   // synthetic id (remove/dedupe in the card)
       custom: true,
@@ -190,17 +192,22 @@ function buildWorkshopProposal(params, specs) {
       img: itemData.img,
       type: spec.type,
       level: spec.level,
-      gp: round2(spec.price),
+      gp,
       qty: 1,
       rarity: spec.rarity,
-      tier: spec.type === "consumable" ? "consumable"
+      tier: runeInfo ? "runed"
+        : spec.type === "consumable" ? "consumable"
         : spec.rarity && spec.rarity !== "common" ? "unusual" : "core",
       reason: "Custom workshop item",
       flavor: spec.flavor || "",
       provenance: spec.provenance || "",
+      // Etched rune set (already baked into itemData) — surfaced for the card.
+      runes: runeInfo?.runes,
+      runeNames: runeInfo?.names,
       forActorId: null, forActorName: null
     });
-    reasoning.push(`Authored "${spec.name}" (Lv ${spec.level} ${spec.type}, ${round2(spec.price)} gp).`);
+    const runeNote = runeInfo?.names?.length ? ` — etched ${runeInfo.names.join(" · ")}` : "";
+    reasoning.push(`Authored "${spec.name}" (Lv ${spec.level} ${spec.type}, ${gp} gp)${runeNote}.`);
   });
 
   const totalGp = round2(picks.reduce((s, x) => s + x.gp, 0));
@@ -247,25 +254,104 @@ function buildCustomItemData(spec, prompt, sources) {
   }
   const flags = { [MODULE_ID]: wf };
 
+  // Resolve a legal, RAW-priced rune set for a weapon/armor (null otherwise), so
+  // a bespoke magic blade/armor actually carries its runes on the sheet — not
+  // just prose. The set is baked into system.runes and the base price below.
+  const runeInfo = resolveSpecRunes(spec);
+
   const data = {
     name: spec.name,
     type: spec.type,
     img: defaultImg(spec.type),
-    system: buildSystemForType(spec, description),
+    system: buildSystemForType(spec, description, runeInfo),
     flags
   };
   const validated = validateItemData(data);
-  if (validated) return validated;
+  if (validated) return { data: validated, runeInfo };
 
-  // The richer type wouldn't validate on this PF2e build — degrade to equipment.
+  // The richer type wouldn't validate on this PF2e build — degrade to equipment
+  // (which can't hold runes, so drop them too).
   const fallback = {
     name: spec.name,
     type: "equipment",
     img: defaultImg("equipment"),
-    system: buildSystemForType({ ...spec, type: "equipment" }, description),
+    system: buildSystemForType({ ...spec, type: "equipment" }, description, null),
     flags
   };
-  return validateItemData(fallback) ?? fallback;
+  return { data: validateItemData(fallback) ?? fallback, runeInfo: null };
+}
+
+/* ------------------------------ rune etching ------------------------------ */
+
+const RANGED_WEAPON_GROUPS = new Set(["bow", "dart", "sling", "firearm", "crossbow"]);
+const METAL_ARMOR_GROUPS = new Set(["plate", "chain", "composite"]);
+const VERSATILE_DAMAGE = { b: "bludgeoning", p: "piercing", s: "slashing" };
+
+/**
+ * Resolve a legal, RAW-priced rune set for a custom weapon/armor spec, or null.
+ *   1. Honour an explicit `spec.runes` the model authored (sanitized to legal).
+ *   2. Otherwise, if the item is magical, derive a level-appropriate, themed set
+ *      so its magic shows up mechanically (the GM still reviews & can edit).
+ * When runes apply we split the authored price into a base price (written to the
+ * item) + the rune cost the PF2e system re-adds, so the sheet total ≈ the model's
+ * fair value and runes are never double-counted.
+ */
+function resolveSpecRunes(spec) {
+  if (spec.type !== "weapon" && spec.type !== "armor") return null;
+  const meta = specRuneMeta(spec);
+  if (!meta) return null;
+
+  let runes = spec.runes ? sanitizeRuneSet(meta, spec.runes) : null;
+  const total = Math.max(0, Number(spec.price) || 0);
+  if (!runes && isMagical(meta.traits)) {
+    const set = buildRuneSet(meta, { level: spec.level, maxGp: total, themeSlugs: themeRuneSlugs({ traits: meta.traits }) });
+    if (set) runes = set.runes;
+  }
+  if (!runes) return null;
+
+  const runeGp = runePriceOf(meta, runes);
+  const basePrice = Math.max(0, round2(total - runeGp));
+  return { meta, runes, basePrice, totalGp: round2(basePrice + runeGp), names: runeSetNames(meta, runes) };
+}
+
+/** Build the eligibility descriptor for a weapon/armor spec (validated fields). */
+function specRuneMeta(spec) {
+  const traits = withInferredTraits(spec.type, validTraitsFor(spec.type, spec.traits), spec.name);
+  if (spec.type === "weapon") {
+    const group = validWeaponGroup(spec.group);
+    return {
+      kind: "weapon",
+      baseItem: validWeaponBaseItem(spec),
+      damage: weaponDamageTypes(validDamageType(spec.damageType) ?? "slashing", traits),
+      melee: !(RANGED_WEAPON_GROUPS.has(group) || traits.includes("ranged")),
+      thrown: traits.some(t => t === "thrown" || t.startsWith("thrown-")),
+      traits
+    };
+  }
+  if (spec.type === "armor") {
+    return {
+      kind: "armor",
+      category: validArmorCategory(spec.category),
+      material: METAL_ARMOR_GROUPS.has(validArmorGroup(spec.group)) ? "metal" : null,
+      traits
+    };
+  }
+  return null;
+}
+
+/** Damage types a weapon can deal: its primary type plus any versatile traits. */
+function weaponDamageTypes(primary, traits) {
+  const out = new Set();
+  if (primary) out.add(primary);
+  for (const t of traits) {
+    const m = /^versatile-(b|p|s)$/.exec(t);
+    if (m) out.add(VERSATILE_DAMAGE[m[1]]);
+  }
+  return [...out];
+}
+
+function isMagical(traits) {
+  return Array.isArray(traits) && (traits.includes("magical") || traits.some(t => TRADITION_TRAITS.has(t)));
 }
 
 /** Assemble the description: authored flavor + body (with enrichers) + provenance. */
@@ -280,7 +366,7 @@ function buildDescription(spec) {
 }
 
 /** Build the system object for a given item type, core fields + safe defaults. */
-function buildSystemForType(spec, description) {
+function buildSystemForType(spec, description, runeInfo = null) {
   const gmNote = iconNoteHtml({
     name: spec.name, type: spec.type, rarity: spec.rarity,
     traits: spec.traits, flavor: spec.flavor, hint: spec.iconHint
@@ -301,27 +387,30 @@ function buildSystemForType(spec, description) {
     case "weapon":
       return {
         ...base,
+        // Runed items split price into base + rune cost (the system re-adds runes).
+        ...(runeInfo ? { price: { value: { gp: runeInfo.basePrice } } } : {}),
         category: validWeaponCategory(spec.category), group: validWeaponGroup(spec.group),
         baseItem: validWeaponBaseItem(spec),
         damage: {
-          dice: 1,
+          dice: 1, // base die count; striking runes add dice via system.runes
           die: validDamageDie(spec.damageDie) ?? "d6",
           damageType: validDamageType(spec.damageType) ?? "slashing",
           modifier: 0, persistent: null
         },
         bonus: { value: 0 }, bonusDamage: { value: 0 }, splashDamage: { value: 0 },
         range: null, reload: { value: null },
-        runes: { potency: 0, striking: 0, property: [] },
+        runes: runeInfo ? runeInfo.runes : { potency: 0, striking: 0, property: [] },
         usage: { value: mapUsage(spec.usage, "weapon") }
       };
     case "armor":
       // The system fixes armor usage to the armor slot — don't author it.
       return {
         ...base,
+        ...(runeInfo ? { price: { value: { gp: runeInfo.basePrice } } } : {}),
         category: validArmorCategory(spec.category), group: validArmorGroup(spec.group),
         baseItem: validArmorBaseItem(spec),
         acBonus: 1, strength: null, dexCap: 4, checkPenalty: 0, speedPenalty: 0,
-        runes: { potency: 0, resilient: 0, property: [] }
+        runes: runeInfo ? runeInfo.runes : { potency: 0, resilient: 0, property: [] }
       };
     case "consumable":
       return {
@@ -375,11 +464,30 @@ function sanitizeSpec(raw) {
     baseItem: String(raw?.baseItem ?? raw?.base ?? raw?.baseType ?? "").slice(0, 60),
     damageType: raw?.damageType ?? raw?.damagetype ?? null,
     damageDie: raw?.damageDie ?? raw?.die ?? null,
+    runes: extractRawRunes(raw),
     description: cleanText(raw?.description, 1500),
     flavor: cleanText(raw?.flavor, 280),
     provenance: cleanText(raw?.provenance, 200),
     iconHint: cleanText(raw?.iconPrompt ?? raw?.icon ?? raw?.iconHint, 240)
   };
+}
+
+/**
+ * Pull a raw rune descriptor out of a spec, accepting either a nested `runes`
+ * object or flattened top-level fields. Left unsanitized here — `sanitizeRuneSet`
+ * (which knows the base item) enforces legality at build time.
+ */
+function extractRawRunes(raw) {
+  const r = raw?.runes;
+  if (r && typeof r === "object" && !Array.isArray(r)) return r;
+  const flat = {};
+  if (raw?.potency != null) flat.potency = raw.potency;
+  if (raw?.striking != null) flat.striking = raw.striking;
+  if (raw?.resilient != null) flat.resilient = raw.resilient;
+  const props = Array.isArray(raw?.property) ? raw.property
+    : Array.isArray(raw?.propertyRunes) ? raw.propertyRunes : null;
+  if (props) flat.property = props;
+  return Object.keys(flat).length ? flat : null;
 }
 
 /* ------------------------------ PF2e vocabulary ------------------------------ */

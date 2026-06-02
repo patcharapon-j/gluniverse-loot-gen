@@ -275,6 +275,118 @@ export function eligiblePropertyRunes(meta, { maxLevel = 99, maxGp = Infinity } 
   return table.filter(r => r.level <= maxLevel && r.price <= maxGp && runeFits(r, meta));
 }
 
+/* ------------------------------ slug lookup & pricing ------------------------------ */
+
+/** Property-rune lookup by canonical slug (lower-cased), per item kind. */
+const PROPERTY_INDEX = {
+  weapon: indexBySlug(WEAPON_PROPERTY),
+  armor: indexBySlug(ARMOR_PROPERTY)
+};
+function indexBySlug(table) {
+  const m = new Map();
+  for (const r of table) m.set(r.slug.toLowerCase(), r);
+  return m;
+}
+
+/**
+ * Resolve a property rune from a slug OR a display name, tolerating the several
+ * shapes an LLM might emit ("flaming", "greater flaming", "Flaming (Greater)",
+ * "greaterFlaming"). Returns the rune object or null when it isn't a real rune
+ * of that kind.
+ */
+export function findPropertyRune(kind, slugOrName) {
+  const idx = PROPERTY_INDEX[kind];
+  if (!idx) return null;
+  const s = String(slugOrName ?? "").trim();
+  if (!s) return null;
+  for (const cand of [s, camelize(s), runeSlug(s)]) {
+    const hit = idx.get(String(cand).toLowerCase());
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** RAW gp cost of a rune set (fundamentals + property runes), for a base item. */
+export function runePriceOf(meta, runes) {
+  if (!meta || !runes) return 0;
+  const isWeapon = meta.kind === "weapon";
+  let gp = 0;
+  const pot = fundamentalAt(isWeapon ? "attack" : "defense", runes.potency);
+  if (pot) gp += pot.price;
+  const sec = fundamentalAt(isWeapon ? "striking" : "resilient", isWeapon ? runes.striking : runes.resilient);
+  if (sec) gp += sec.price;
+  for (const slug of runes.property ?? []) {
+    const r = findPropertyRune(meta.kind, slug);
+    if (r) gp += r.price;
+  }
+  return round2(gp);
+}
+
+/** Human-readable names for a rune set ("+2", "greater striking", "Flaming"). */
+export function runeSetNames(meta, runes) {
+  if (!meta || !runes) return [];
+  const isWeapon = meta.kind === "weapon";
+  const names = [];
+  if (runes.potency >= 1) names.push(`+${runes.potency}`);
+  const sec = fundamentalAt(isWeapon ? "striking" : "resilient", isWeapon ? runes.striking : runes.resilient);
+  if (sec) names.push(sec.name);
+  for (const slug of runes.property ?? []) {
+    const r = findPropertyRune(meta.kind, slug);
+    if (r) names.push(r.name);
+  }
+  return names;
+}
+
+/**
+ * Clean an *explicit* rune set (e.g. one an LLM authored for a bespoke item)
+ * into a legal modern PF2e rune object for `meta`'s base item. Unlike
+ * `buildRuneSet`, this honours the caller's chosen tiers rather than capping to
+ * the ABP curve (a workshop reward may sit off-curve) — but it still enforces
+ * RAW legality: tiers clamp to 0-3, a striking/resilient rune implies at least
+ * +1 potency, property runes must pass their Usage restriction and be known to
+ * the live system, and the property count can't exceed the potency value.
+ * Returns the rune object, or null when nothing legal remains.
+ */
+export function sanitizeRuneSet(meta, raw) {
+  if (!meta || (meta.kind !== "weapon" && meta.kind !== "armor")) return null;
+  if (!raw || typeof raw !== "object") return null;
+  const isWeapon = meta.kind === "weapon";
+
+  let potency = clampTier(raw.potency);
+  const secTier = clampTier(isWeapon ? raw.striking : raw.resilient);
+  // RAW: a striking/resilient rune requires at least a +1 potency rune.
+  if (secTier >= 1 && potency < 1) potency = 1;
+
+  const seen = new Set();
+  const property = [];
+  for (const entry of Array.isArray(raw.property) ? raw.property : []) {
+    const rune = findPropertyRune(meta.kind, entry);
+    if (!rune) continue;                       // not a real rune of this kind
+    if (seen.has(rune.slug)) continue;         // dedupe
+    if (!runeFits(rune, meta)) continue;       // illegal on this base item
+    if (!knownRuneSlug(meta.kind, rune.slug)) continue; // unknown to live system
+    seen.add(rune.slug);
+    property.push(rune.slug);
+  }
+  // A weapon/armor holds property runes only up to its potency value. Honour an
+  // explicit potency (trim any excess property runes to fit), but when the author
+  // gave property runes with NO potency at all, derive the minimum potency needed
+  // so the runes aren't silently lost (a property rune is illegal without one).
+  if (potency === 0 && property.length) potency = Math.min(3, property.length);
+  const slotted = property.slice(0, potency);
+
+  if (!potency && !secTier && !slotted.length) return null;
+  return isWeapon
+    ? { potency, striking: secTier, property: slotted }
+    : { potency, resilient: secTier, property: slotted };
+}
+
+function clampTier(v) {
+  const n = Math.trunc(Number(v));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(3, n);
+}
+
 /* ------------------------------ rune-set builder ------------------------------ */
 
 /**

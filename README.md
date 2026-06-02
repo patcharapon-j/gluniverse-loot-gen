@@ -46,7 +46,10 @@ Then enable it in a world running the **Pathfinder 2e** system.
   resilient, and eligible property runes) sized to the party level and the find's theme.
   Eligibility is grounded in each rune's actual Usage restriction (e.g. *keen* only on
   piercing/slashing melee, *shadow* only on light/medium armor, *magnetizing* only on
-  metal armor), so no illegal combinations are ever minted. See `scripts/pf2e/runes.js`.
+  metal armor), so no illegal combinations are ever minted. **Workshop-authored** weapons
+  and armor are etched too: the LLM's rune choices are validated against the same table
+  (illegal/unknown runes dropped) and priced so the sheet total matches the item's fair
+  value. See `scripts/pf2e/runes.js`.
 - **Heirloom mode** *(opt-in)* — fundamental runes **awaken in place** on a PC's
   signature weapon/armor instead of dropping new gear. RAW-priced, so budget/auditor are
   unaffected.
