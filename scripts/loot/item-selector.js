@@ -10,11 +10,22 @@
  */
 
 import { MODULE_ID } from "../const.js";
+import { FUNDAMENTAL_PATTERNS } from "../pf2e/runes.js";
 
 /** Physical item types we treat as lootable. */
 const PHYSICAL_TYPES = new Set([
   "weapon", "armor", "shield", "equipment", "consumable", "treasure", "backpack"
 ]);
+
+/** Armor groups the rune rules consider "metal" (for metal-only armor runes). */
+const METAL_ARMOR_GROUPS = new Set(["plate", "chain", "composite"]);
+/** Material slugs that are metals (armor `system.material.type`). */
+const METAL_MATERIALS = new Set([
+  "steel", "iron", "cold-iron", "adamantine", "silver", "mithral", "orichalcum",
+  "djezet", "inubrix", "noqual", "siccatite", "abysium", "dawnsilver", "duskwood-no"
+]);
+/** Versatile-trait letter → damage type (a weapon "can" deal these too). */
+const VERSATILE_DAMAGE = { b: "bludgeoning", p: "piercing", s: "slashing" };
 
 /** Convert a PF2e price coin object (or number) to a gp float. */
 export function priceToGp(price) {
@@ -49,7 +60,15 @@ export async function getItemIndex() {
     "system.level.value",
     "system.price.value",
     "system.traits.value",
-    "system.traits.rarity"
+    "system.traits.rarity",
+    // extra facts the rune-eligibility (strict Usage) check needs:
+    "system.category",
+    "system.group",
+    "system.baseItem",
+    "system.damage.damageType",
+    "system.range",
+    "system.material",
+    "system.runes"
   ];
   const out = [];
   for (const pack of selectPacks()) {
@@ -59,6 +78,7 @@ export async function getItemIndex() {
         if (!PHYSICAL_TYPES.has(e.type)) continue;
         const gp = priceToGp(e.system?.price?.value);
         if (!(gp > 0)) continue; // skip unpriced / quest-only items
+        const traits = Array.isArray(e.system?.traits?.value) ? e.system.traits.value : [];
         out.push({
           uuid: e.uuid ?? `Compendium.${pack.collection}.${e._id}`,
           name: e.name,
@@ -66,8 +86,9 @@ export async function getItemIndex() {
           type: e.type,
           level: Number(e.system?.level?.value) || 0,
           gp,
-          traits: Array.isArray(e.system?.traits?.value) ? e.system.traits.value : [],
-          rarity: e.system?.traits?.rarity ?? "common"
+          traits,
+          rarity: e.system?.traits?.rarity ?? "common",
+          meta: runeMeta(e, traits) // weapon/armor facts for rune eligibility (else null)
         });
       }
     } catch (err) {
@@ -81,6 +102,74 @@ export async function getItemIndex() {
 
 /** Drop the cached index (e.g. after the GM installs a new compendium). */
 export function clearItemIndex() { _indexCache = null; }
+
+/**
+ * Distill a weapon/armor index entry into the facts rune-eligibility needs
+ * (DESIGN §9 — appropriate, legal rune sets). Returns null for non-gear so
+ * the field stays cheap on the index. `hasRunes` flags an already-magical base
+ * (existing potency/striking/resilient/property) so we never double-etch it.
+ */
+function runeMeta(e, traits) {
+  const runes = e.system?.runes;
+  const hasRunes = !!runes && (
+    (Number(runes.potency) || 0) > 0 ||
+    (Number(runes.striking) || 0) > 0 ||
+    (Number(runes.resilient) || 0) > 0 ||
+    (Array.isArray(runes.property) && runes.property.length > 0)
+  );
+
+  if (e.type === "weapon") {
+    const versatile = traits
+      .filter(t => t.startsWith("versatile-"))
+      .map(t => VERSATILE_DAMAGE[t.split("-")[1]])
+      .filter(Boolean);
+    const dmg = [e.system?.damage?.damageType, ...versatile].filter(Boolean);
+    const ranged = e.system?.range != null || traits.includes("ranged");
+    return {
+      kind: "weapon",
+      damage: dmg,
+      melee: !ranged,
+      thrown: traits.some(t => t === "thrown" || t.startsWith("thrown-")),
+      category: e.system?.category ?? null,    // simple/martial/advanced/unarmed
+      group: e.system?.group ?? null,
+      baseItem: e.system?.baseItem ?? null,
+      traits,
+      hasRunes
+    };
+  }
+
+  if (e.type === "armor") {
+    return {
+      kind: "armor",
+      category: e.system?.category ?? null,    // light/medium/heavy
+      group: e.system?.group ?? null,
+      material: armorMaterial(e),
+      traits,
+      hasRunes
+    };
+  }
+
+  return null;
+}
+
+/** Best-effort "metal" classification for armor (for metal-only armor runes). */
+function armorMaterial(e) {
+  const type = e.system?.material?.type ?? e.system?.material?.precious ?? null;
+  if (type && METAL_MATERIALS.has(String(type))) return "metal";
+  if (METAL_ARMOR_GROUPS.has(String(e.system?.group ?? ""))) return "metal";
+  return null;
+}
+
+/**
+ * Candidate *mundane base* weapons or armor to etch runes onto (DESIGN §9):
+ * plain, common, runeless gear whose value is essentially the base item. These
+ * are the legal canvases for a freshly-etched rune set.
+ */
+export function mundaneBases(index, kind) {
+  return index.filter(it =>
+    it.type === kind && it.meta && !it.meta.hasRunes
+    && it.level <= 0 && it.rarity === "common");
+}
 
 /** Filter the index to a level/price/type window. */
 export function filterCandidates(index, {
@@ -135,21 +224,14 @@ export function weightedPick(items, weightFn) {
 
 /* ----------------------------- fundamental runes ----------------------------- */
 
-/** Name patterns for fundamental rune items, indexed by tier (1..3). */
-const RUNE_PATTERNS = {
-  attack:    [/weapon potency \(\+1\)/i, /weapon potency \(\+2\)/i, /weapon potency \(\+3\)/i],
-  striking:  [/^striking rune/i, /greater striking rune/i, /major striking rune/i],
-  defense:   [/armor potency \(\+1\)/i, /armor potency \(\+2\)/i, /armor potency \(\+3\)/i],
-  resilient: [/^resilient rune/i, /greater resilient rune/i, /major resilient rune/i]
-};
-
 /**
  * Find the fundamental rune item that fills (or best approaches) a gap on an
  * axis at the desired tier, within budget. Steps down a tier if the ideal one
- * is unaffordable. Returns { item, tier } or null.
+ * is unaffordable. Returns { item, tier } or null. Patterns are grounded in the
+ * shared rune table (scripts/pf2e/runes.js) so the truth lives in one place.
  */
 export function findRune(index, axis, tier, maxGp = Infinity) {
-  const pats = RUNE_PATTERNS[axis];
+  const pats = FUNDAMENTAL_PATTERNS[axis];
   if (!pats) return null;
   for (let t = Math.min(tier, pats.length); t >= 1; t--) {
     const pat = pats[t - 1];

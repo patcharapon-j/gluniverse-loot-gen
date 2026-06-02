@@ -276,6 +276,7 @@ async function hydratePick(pick) {
     const doc = await safeFromUuid(pick?.uuid);
     if (!doc) return null;
     data = doc.toObject();
+    applyRunes(data, pick);     // etch the cascade's rune set onto a base weapon/armor
     applyFlavor(data, pick);    // compendium-backed picks get their flavor folded in
     applyIconNote(data, pick);  // …and a GM-only icon-generation prompt
   }
@@ -301,6 +302,37 @@ function applyIconNote(data, pick) {
   if (!note) return data;
   const existing = foundry.utils.getProperty(data, "system.description.gm") ?? "";
   foundry.utils.setProperty(data, "system.description.gm", existing ? `${existing}${note}` : note);
+  return data;
+}
+
+/**
+ * Etch a cascade-built rune set (pick.runes) onto a hydrated base weapon/armor,
+ * in place (DESIGN §9). Writes the modern numeric `system.runes` shape, falling
+ * back to the legacy discrete rune fields for older PF2e builds. The PF2e system
+ * derives the runed price and level from these, so we never touch price here —
+ * the proposal already booked base + rune gp to the ledger. Never lowers an
+ * existing rune (mundane bases start at 0, so this just sets them).
+ */
+function applyRunes(data, pick) {
+  const r = pick?.runes;
+  if (!r || (data.type !== "weapon" && data.type !== "armor")) return data;
+  const isArmor = data.type === "armor";
+  const property = (Array.isArray(r.property) ? r.property : []).filter(Boolean).slice(0, 4);
+  const modern = data.system?.runes && typeof data.system.runes === "object";
+
+  if (modern) {
+    const runes = { ...data.system.runes };
+    runes.potency = Math.max(Number(runes.potency) || 0, Number(r.potency) || 0);
+    if (isArmor) runes.resilient = Math.max(Number(runes.resilient) || 0, Number(r.resilient) || 0);
+    else runes.striking = Math.max(Number(runes.striking) || 0, Number(r.striking) || 0);
+    runes.property = property;
+    foundry.utils.setProperty(data, "system.runes", runes);
+  } else {
+    foundry.utils.setProperty(data, "system.potencyRune.value", Number(r.potency) || 0);
+    if (isArmor) foundry.utils.setProperty(data, "system.resiliencyRune.value", RESILIENT_LEGACY[r.resilient] ?? null);
+    else foundry.utils.setProperty(data, "system.strikingRune.value", STRIKING_LEGACY[r.striking] ?? null);
+    property.forEach((slug, i) => foundry.utils.setProperty(data, `system.propertyRune${i + 1}.value`, slug));
+  }
   return data;
 }
 

@@ -54,6 +54,7 @@ export async function decorateProposal(proposal, { force = false } = {}) {
       level: pick.level,
       rarity: pick.rarity,
       heirloom: !!pick.heirloom,
+      runes: Array.isArray(pick.runeNames) && pick.runeNames.length ? pick.runeNames : undefined,
       for: pick.forActorName ?? null,
       reason: pick.reason ?? ""
     }))

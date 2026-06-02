@@ -41,6 +41,12 @@ Then enable it in a world running the **Pathfinder 2e** system.
   destination before anything is created.
 - **Multi-target materialization** — Loot actor (chest), chat hand-out, or direct to PC
   sheets. Writes valid PF2e item data (real compendium UUIDs, prices intact).
+- **Rune-etched weapon & armor** *(on by default)* — weapon and armor drops come
+  **pre-etched with an appropriate, legal, RAW-priced rune set** (potency, striking/
+  resilient, and eligible property runes) sized to the party level and the find's theme.
+  Eligibility is grounded in each rune's actual Usage restriction (e.g. *keen* only on
+  piercing/slashing melee, *shadow* only on light/medium armor, *magnetizing* only on
+  metal armor), so no illegal combinations are ever minted. See `scripts/pf2e/runes.js`.
 - **Heirloom mode** *(opt-in)* — fundamental runes **awaken in place** on a PC's
   signature weapon/armor instead of dropping new gear. RAW-priced, so budget/auditor are
   unaffected.
@@ -93,6 +99,7 @@ See [DESIGN.md](DESIGN.md) for the full 17-section specification and build order
 | Party Actor ID | *(auto)* | Force a specific Party actor; blank = auto-detect |
 | Heirloom Mode | off | Fundamental runes awaken in place on signature items |
 | Heirloom Mode — include armor | off | Also awaken armor fundamentals (else weapons only) |
+| Etch runes onto weapon & armor loot | on | Weapon/armor drops carry a legal, RAW-priced rune set (potency, striking/resilient, eligible property runes) sized to level & theme |
 | LLM Flavor & Provenance | off | Request batched flavor from the `claude -p` sidecar |
 | Flavor Sidecar URL | `/gllg-sidecar` | Same-origin path to the sidecar (behind nginx) |
 | Flavor Sidecar Secret | *(empty)* | Shared secret; must match the sidecar's `GLLG_SECRET` |
