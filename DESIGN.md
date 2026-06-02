@@ -91,6 +91,8 @@ Cascade **proposes → chat-card preview with reasoning → GM approves/swaps/re
 
 ## 9. Escape the treadmill (goal c) — runes-as-loot reskinned as evolving heirlooms
 
+- **Grounded rune truth** (`scripts/pf2e/runes.js`): the full AoN rune roster — fundamental (weapon/armor potency, striking, resilient) and property (weapon + armor) — with RAW level/price/rarity **and each rune's Usage restriction** encoded as an eligibility predicate. This is the single source of truth for "which runes exist and what they may go on."
+- **Weapon & armor loot is etched, not bare** (on by default, setting `etchRunes`): when the cascade drops a weapon or armor in the drift/fun layers it picks a mundane base and **etches a legal, level-appropriate, budget-bounded rune set** onto it — potency + striking/resilient capped to the ABP curve, plus property runes equal to the potency tier, theme-weighted from the find's tags. Strict eligibility means no illegal item is ever minted (no keen mace, no shadow plate, no magnetizing leather). The Materializer writes the real `system.runes` object; PF2e derives the runed price/level, and the proposal books base + rune gp so the ledger stays exact.
 - **Mechanically = rune transfer** (RAW-priced): loot drops as runes; players keep their signature weapon; only runes climb. Budget + health-check unaffected because nothing is bypassed.
 - **Narratively = evolving heirloom**: the rune *awakens within* the PC's existing item at a story beat ("the blade drinks the giant's frost") = striking rune applied in place.
 - **Opt-in mode** (some groups love whole new weapons — don't force it). **One signature item per PC** by default, expandable to armor. Per-PC, per-slot setting.

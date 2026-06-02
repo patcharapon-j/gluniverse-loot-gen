@@ -46,6 +46,9 @@
   "GLLG.settings.heirloomArmor.name": "Heirloom Mode — include armor",
   "GLLG.settings.heirloomArmor.hint": "Also awaken armor fundamentals (potency/resilient) within the PC's worn armor. Off = weapons only.",
 
+  "GLLG.settings.etchRunes.name": "Etch runes onto weapon & armor loot",
+  "GLLG.settings.etchRunes.hint": "When on, generated weapon and armor drops come pre-etched with an appropriate, legal, RAW-priced rune set (potency, striking/resilient, and eligible property runes) sized to the party's level and the find's theme. Eligibility follows each rune's Usage restriction (e.g. keen only on piercing/slashing melee, shadow only on light/medium armor), so no illegal combinations are produced. Off = only pre-made magic items drop.",
+
   "GLLG.settings.llmFlavor.name": "LLM Flavor & Provenance",
   "GLLG.settings.llmFlavor.hint": "When on, each generated hoard makes one call to the claude -p sidecar to add provenance flavor text to its items. Purely cosmetic — prices and rules never change. Any failure drops the loot with plain rules-text (never blocks generation). Requires the sidecar URL below.",
 

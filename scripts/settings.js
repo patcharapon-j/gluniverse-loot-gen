@@ -55,6 +55,12 @@ export function registerSettings() {
     scope: "world", config: true, type: Boolean, default: false
   });
 
+  reg(SETTINGS.etchRunes, {
+    name: "GLLG.settings.etchRunes.name",
+    hint: "GLLG.settings.etchRunes.hint",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
   // --- LLM flavor sidecar (DESIGN §14) ---
   reg(SETTINGS.llmFlavor, {
     name: "GLLG.settings.llmFlavor.name",

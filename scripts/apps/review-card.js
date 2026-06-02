@@ -263,6 +263,9 @@ function renderItem(parcel, it) {
   const heir = it.heirloom
     ? `<div class="gllg-item-heir"><i class="fa-solid fa-wand-magic-sparkles"></i> awakens in ${esc(it.forItemName || "signature item")}</div>`
     : "";
+  const runes = Array.isArray(it.runeNames) && it.runeNames.length
+    ? `<div class="gllg-item-runes"><i class="fa-solid fa-gem"></i> ${esc(it.runeNames.join(" · "))}</div>`
+    : "";
   // Swapping a heirloom would replace it with an ordinary drop, and a custom
   // workshop item has no compendium equivalent to swap to — disallow both.
   const swap = (it.heirloom || it.custom) ? ""
@@ -272,6 +275,7 @@ function renderItem(parcel, it) {
     <div class="gllg-item-main">
       <div class="gllg-item-name">${esc(it.name)} ${badge}${it.flavorName ? `<div class="gllg-flavorname">“${esc(it.flavorName)}”</div>` : ""}</div>
       <div class="gllg-item-meta">Lv ${it.level} · ${gp(it.gp)} gp ${who}</div>
+      ${runes}
       ${heir}
       ${it.reason ? `<div class="gllg-item-reason">${esc(it.reason)}</div>` : ""}
       ${it.flavor ? `<div class="gllg-item-flavor"><i class="fa-solid fa-quote-left"></i> ${esc(it.flavor)}</div>` : ""}

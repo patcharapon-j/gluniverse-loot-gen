@@ -15,10 +15,11 @@
 
 import { CORE_RATIO, SETTINGS, SEVERITY } from "../const.js";
 import {
-  getItemIndex, filterCandidates, weightFor, weightedPick, findRune
+  getItemIndex, filterCandidates, weightFor, weightedPick, findRune, mundaneBases
 } from "./item-selector.js";
 import { buildReport } from "../auditor/health-check.js";
 import { expectedFundamentals } from "../pf2e/tables.js";
+import { buildRuneSet, themeRuneSlugs } from "../pf2e/runes.js";
 import { signatureWeapon, signatureArmor } from "../pf2e/actor-reader.js";
 
 const ARMOR_AXES = new Set(["defense", "resilient"]);
@@ -26,6 +27,8 @@ const ARMOR_AXES = new Set(["defense", "resilient"]);
 const CORE_AXES = ["attack", "striking", "defense", "resilient"];
 const MAX_ITEMS = 30;            // runaway guard
 const MIN_ITEM_GP = 0.5;         // below this, stop buying and dump to currency
+const MIN_RUNED_GP = 35;         // don't attempt etching below the cheapest potency rune (+1 weapon, 35 gp)
+const RUNED_GEAR_CHANCE = 0.6;   // share of permanent picks that etch a base weapon/armor (vs. a pre-made magic item)
 
 /** Build a full loot proposal for a request. Async (queries compendia). */
 export async function proposeLoot(request) {
@@ -50,6 +53,8 @@ export async function proposeLoot(request) {
   const reasoning = [];
   let remaining = request.budgetGp;
   const heirloom = heirloomEnabled();
+  const etch = etchEnabled();
+  const themeSlugs = themeRuneSlugs(tags);
 
   const buy = (item, extra) => {
     if (!item) return false;
@@ -64,6 +69,60 @@ export async function proposeLoot(request) {
       forActorName: extra.forActorName ?? null
     });
     return true;
+  };
+
+  // Etch an appropriate, legal, RAW-priced rune set onto a mundane base weapon/
+  // armor (DESIGN §9). gp is base + runes; the item level rises to the highest
+  // rune level. The rune set rides on the pick so the Materializer can write the
+  // real `system.runes` object onto the hydrated base item.
+  const buyRuned = (base, set, extra) => {
+    if (!base || !set) return false;
+    used.add(base.uuid);
+    const gp = round2(base.gp + set.addedGp);
+    remaining -= gp;
+    picks.push({
+      uuid: base.uuid, name: base.name, img: base.img, type: base.type,
+      level: Math.max(base.level, set.addedLevel), gp, qty: 1, rarity: base.rarity,
+      tier: "runed",
+      reason: extra.reason ?? "",
+      forActorId: extra.forActorId ?? null,
+      forActorName: extra.forActorName ?? null,
+      runes: set.runes,
+      runeNames: set.names
+    });
+    return true;
+  };
+
+  // Pick a level-appropriate permanent. Part of the time (so wondrous items,
+  // wands, and worn gear still appear) it etches a freshly-runed base weapon or
+  // armor so that weapon/armor loot carries its rune set (DESIGN §9); otherwise
+  // it pulls a pre-made magic item. Returns { runed:{base,set} } | { item } |
+  // null. Commits via `place`.
+  const pickGear = (maxGp, { unusualBias = 0 } = {}) => {
+    if (etch && maxGp >= MIN_RUNED_GP && Math.random() < RUNED_GEAR_CHANCE) {
+      const kind = Math.random() < 0.5 ? "weapon" : "armor";
+      const runed = pickRunedGear(index, { level, tags, maxGp, used, kind, themeSlugs })
+        ?? pickRunedGear(index, { level, tags, maxGp, used, themeSlugs, kind: kind === "weapon" ? "armor" : "weapon" });
+      if (runed) return { runed };
+    }
+    const item = pickPermanent(index, { level, tags, maxGp, used, unusualBias });
+    return item ? { item } : null;
+  };
+
+  // Commit a pickGear result with a shared reason/target; returns gp spent.
+  const place = (res, { forActorId = null, forActorName = null } = {}) => {
+    if (!res) return 0;
+    const before = remaining;
+    if (res.runed) {
+      const r = runedReason(res.runed.base, res.runed.set);
+      buyRuned(res.runed.base, res.runed.set, { reason: r, forActorId, forActorName });
+      reasoning.push(forActorName ? `${r} for ${forActorName}` : r);
+    } else {
+      const r = forActorName ? `Weighted toward ${forActorName} (behind on wealth)` : themeReason(res.item, tags);
+      buy(res.item, { reason: r, forActorId, forActorName });
+      reasoning.push(r);
+    }
+    return round2(before - remaining);
   };
 
   // Heirloom awakening: same RAW-priced rune, but it climbs *within* the PC's
@@ -114,12 +173,11 @@ export async function proposeLoot(request) {
     let i = 0;
     while (driftBudget >= MIN_ITEM_GP && picks.length < cap) {
       const target = behind[i % behind.length];
-      const item = pickPermanent(index, { level, tags, maxGp: Math.min(driftBudget, remaining), used, unusualBias: funBias * 0.5 });
-      if (!item) break;
-      const r = `Weighted toward ${target.name} (behind on wealth)`;
-      buy(item, { reason: r, forActorId: target.id, forActorName: target.name });
-      reasoning.push(r);
-      driftBudget -= item.gp;
+      const res = pickGear(Math.min(driftBudget, remaining), { unusualBias: funBias * 0.5 });
+      if (!res) break;
+      const spent = place(res, { forActorId: target.id, forActorName: target.name });
+      if (spent <= 0) break;
+      driftBudget -= spent;
       i++;
     }
   }
@@ -130,19 +188,21 @@ export async function proposeLoot(request) {
   while (remaining >= MIN_ITEM_GP && picks.length < cap && safety++ < MAX_ITEMS) {
     // Alternate permanents and consumables; consumables sit 2–3 levels below.
     const wantConsumable = safety % 2 === 0;
-    const item = wantConsumable
-      ? pickConsumable(index, { level, tags, maxGp: remaining, used })
-      : pickPermanent(index, { level, tags, maxGp: remaining, used, unusualBias: funBias });
-    if (!item) {
-      // Try the other category once before giving up.
-      const alt = wantConsumable
-        ? pickPermanent(index, { level, tags, maxGp: remaining, used, unusualBias: funBias })
-        : pickConsumable(index, { level, tags, maxGp: remaining, used });
-      if (!alt) break;
-      buy(alt, { reason: themeReason(alt, tags) });
+    if (wantConsumable) {
+      const c = pickConsumable(index, { level, tags, maxGp: remaining, used });
+      if (c) { buy(c, { reason: themeReason(c, tags) }); continue; }
+      // Fall through to a permanent if no consumable fits.
+      const res = pickGear(remaining, { unusualBias: funBias });
+      if (!res) break;
+      place(res);
       continue;
     }
-    buy(item, { reason: themeReason(item, tags) });
+    const res = pickGear(remaining, { unusualBias: funBias });
+    if (res) { place(res); continue; }
+    // Try a consumable once before giving up.
+    const c = pickConsumable(index, { level, tags, maxGp: remaining, used });
+    if (!c) break;
+    buy(c, { reason: themeReason(c, tags) });
   }
 
   /* ---- Phase 4: currency fills the rest ---- */
@@ -241,6 +301,28 @@ function collectFundamentalGaps(report) {
   return gaps;
 }
 
+/**
+ * Build a runed base weapon/armor for the fun/drift layers (DESIGN §9): pick a
+ * themed, affordable mundane base, then etch a legal, level-appropriate rune set
+ * onto it. Returns { base, set } or null when nothing fits the budget.
+ */
+function pickRunedGear(index, { level, tags, maxGp, used, kind, themeSlugs }) {
+  const bases = mundaneBases(index, kind)
+    .filter(b => b.gp <= maxGp - MIN_RUNED_GP && !used.has(b.uuid));
+  if (!bases.length) return null;
+  const base = weightedPick(bases, it => weightFor(it, { tags, preferLevel: 0 }));
+  if (!base) return null;
+  const set = buildRuneSet(base.meta, { level, maxGp: maxGp - base.gp, themeSlugs });
+  if (!set) return null;
+  return { base, set };
+}
+
+/** Human reason for a freshly-runed item, e.g. "Etched +1 striking flaming dagger". */
+function runedReason(base, set) {
+  const runes = (set?.names ?? []).join(" ");
+  return `Etched ${runes} ${base.name}`.replace(/\s+/g, " ").trim();
+}
+
 function pickPermanent(index, { level, tags, maxGp, used, unusualBias = 0 }) {
   const cands = filterCandidates(index, {
     minLevel: Math.max(0, level - 1), maxLevel: level + 2, maxGp,
@@ -322,6 +404,11 @@ function safeReport() {
 /** Is heirloom (in-place rune awakening) mode on for this world? */
 function heirloomEnabled() {
   return !!safeSetting(SETTINGS.heirloomMode, false);
+}
+
+/** Should weapon/armor loot be etched with appropriate rune sets (DESIGN §9)? */
+function etchEnabled() {
+  return !!safeSetting(SETTINGS.etchRunes, true);
 }
 
 /**

@@ -24,6 +24,7 @@ export const SETTINGS = {
   driftTolerancePct: "driftTolerancePct", // Number (world): +/- % band before wealth-drift flags
   heirloomMode: "heirloomMode",           // Boolean (world): fundamental runes awaken in-place on signature items
   heirloomArmor: "heirloomArmor",         // Boolean (world): also awaken armor fundamentals (else weapons only)
+  etchRunes: "etchRunes",                 // Boolean (world): etch appropriate rune sets onto generated weapon/armor loot
 
   // --- LLM flavor sidecar (build #6, DESIGN §14) ---
   llmFlavor: "llmFlavor",                 // Boolean (world): request LLM provenance/flavor from the sidecar
