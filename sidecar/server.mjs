@@ -285,7 +285,7 @@ function pf2eReferenceBlock(level, pwl) {
   lines.push("    - Instantaneous offensive damage (single target): lesser ~1d6-2d6, moderate ~2d6-4d6, greater ~4d6-6d6, major ~6d6-8d6. Lower it a step for an area or a save-for-half effect. Healing scales the same way.");
   lines.push("    - Persistent damage runs ~one die-step below the burst (e.g. moderate item -> 1d8 or 2d6 persistent). Splash damage on thrown items is a small flat number (lesser 1, moderate 2, greater 3, major 4), mirroring alchemical bombs.");
   lines.push("    - Always tag the energy/damage type as a trait inside the enricher: @Damage[3d6[fire]], @Damage[1d6[persistent,acid]]. Never leave damage untyped unless it is physical (bludgeoning/piercing/slashing).");
-  lines.push("    - Weapon base damage die comes from its group; striking runes ADD dice (striking = 2 dice, greater striking = 3, major striking = 4) — encode those as the weapon's die count, not as bonus damage.");
+  lines.push("    - Weapon base damage die comes from its group. For a magic weapon, express +N attack and extra striking dice as RUNES in the item's \"runes\" object (below) — the Foundry system applies them automatically. Do NOT inflate the base die count or add bonus damage to simulate a striking rune.");
   lines.push("    - CONDITIONS: use real PF2e condition names. Valued conditions (clumsy, enfeebled, drained, stupefied, frightened, sickened, slowed, stunned) should carry a SMALL value — usually 1, occasionally 2, and only reach 3-4 on high-level/major items. Frightened is typically 1 (2 at most). Common non-valued ones: off-guard (formerly flat-footed), prone, grabbed, immobilized, dazzled, blinded, deafened, fatigued, fascinated, fleeing, confused, paralyzed, quickened, concealed.");
   lines.push("    - Tie any imposed condition to a saving throw using the level-based DC above, and prefer a graded outcome (success / failure / critical failure changes the value or duration). Typical effect durations are 1 round to 1 minute; lasting conditions should be brief or escapable.");
   lines.push("    - Do not grant flat untyped bonuses to attack, AC, saves, or skills beyond what items of that level normally give (item bonus +1 around level 2-3, +2 around level 10-11, +3 around level 17+).");
@@ -385,10 +385,16 @@ function buildWorkshopPrompt(payload) {
     '    a greatsword gets "versatile-p"; a longbow gets "deadly-d10", "propulsive", "volley-30". Never ship a weapon with no combat traits.',
     '    Also set "baseItem" to the real PF2e base weapon it is built on (e.g. "longsword", "dagger", "rapier", "greatsword", "longbow"),',
     "    so it inherits that weapon's mechanics; only omit baseItem for a truly novel weapon that matches no existing base.",
+    '    For a MAGIC weapon, ALSO give a "runes" object — { "potency": 0-3, "striking": 0-3, "property": ["<slug>", ...] } — using REAL PF2e rune slugs',
+    '    ("flaming", "greaterFlaming", "frost", "shock", "corrosive", "thundering", "ghostTouch", "keen", "wounding", "grievous", "vorpal", "fanged", "holy", "unholy", …).',
+    "    Property runes must be LEGAL for the weapon: e.g. \"keen\"/\"wounding\" only on a piercing or slashing MELEE weapon, \"serrating\"/\"vorpal\" only on a slashing melee weapon, \"crushing\"/\"shockwave\" only on a bludgeoning weapon, \"fanged\" only on a melee weapon.",
+    "    You may include at most as many property runes as the potency value (max 3). The system applies the +N, extra striking dice, and rune gp automatically — set \"price\" to the item's full fair value.",
     '  - ARMOR: ALWAYS set "category" ("light", "medium", or "heavy") and "group"',
     '    ("leather", "chain", "composite", "plate", etc.), plus any fitting armor traits ("comfort", "flexible", "bulwark", "noisy").',
     '    Also set "baseItem" to the real PF2e base armor it is built on (e.g. "leather", "chain-shirt", "breastplate", "half-plate", "full-plate"),',
     "    unless the armor is genuinely novel and matches no existing base.",
+    '    For MAGIC armor, ALSO give a "runes" object — { "potency": 0-3, "resilient": 0-3, "property": ["<slug>", ...] } — using legal armor runes',
+    "    (\"slick\", \"shadow\" only on light/medium armor, \"invisibility\" only on light armor, \"fortification\" only on medium/heavy armor, \"magnetizing\" only on metal armor, \"energyResistant\", …). At most potency-many property runes.",
     '  - WORN/invested gear (rings, cloaks, amulets, belts, trinkets): include "invested" (and "magical" + a tradition if magical).',
     '  - CONSUMABLES: include "consumable" and the kind ("potion", "elixir", "scroll", "talisman", "oil", "poison"); add a tradition/energy trait if magical.',
     usages ? `Valid usage slugs include: ${usages}.`
@@ -412,6 +418,7 @@ function buildWorkshopPrompt(payload) {
     '  "traits" (array of trait slugs — appropriate to the item, never empty),',
     '  "category" + "group" (REQUIRED for weapons and armor; see above),',
     '  "baseItem" (REQUIRED for weapons and armor unless genuinely novel — the real PF2e base slug, e.g. "longsword", "chain-shirt"),',
+    '  "runes" (magic weapons/armor only: { "potency":0-3, "striking"|"resilient":0-3, "property":["<slug>",…] } — legal runes only; see above),',
     '  "damageType" + "damageDie" (optional, weapons only),',
     '  "description" (2-5 sentences using the enrichers above where anything is rolled),',
     '  "flavor" (one vivid sentence, <= 200 chars),',
@@ -502,6 +509,7 @@ function parseWorkshopItems(stdout) {
       category: str(it.category, 40),
       group: str(it.group ?? it.weaponGroup ?? it.armorGroup, 40),
       baseItem: str(it.baseItem ?? it.base ?? it.baseType, 60),
+      runes: normWorkshopRunes(it),
       damageType: str(it.damageType, 30),
       damageDie: str(it.damageDie ?? it.die, 6),
       description: str(it.description, 1500) ?? "",
@@ -510,6 +518,23 @@ function parseWorkshopItems(stdout) {
     });
   }
   return out;
+}
+
+/**
+ * Forward a weapon/armor rune block (potency/striking/resilient/property) when
+ * the model authored one. Lightly clamped here; the module re-validates each
+ * property slug against the live PF2e rune table and Usage rules before etching.
+ */
+function normWorkshopRunes(it) {
+  const r = it?.runes && typeof it.runes === "object" && !Array.isArray(it.runes) ? it.runes : it;
+  const potency = clampInt(r.potency, 0, 3, 0);
+  const striking = clampInt(r.striking, 0, 3, 0);
+  const resilient = clampInt(r.resilient, 0, 3, 0);
+  const propsRaw = Array.isArray(r.property) ? r.property
+    : Array.isArray(r.propertyRunes) ? r.propertyRunes : [];
+  const property = propsRaw.map(p => str(p, 40)).filter(Boolean).slice(0, 4);
+  if (!potency && !striking && !resilient && !property.length) return undefined;
+  return { potency, striking, resilient, property };
 }
 
 function clampInt(v, lo, hi, dflt) {
