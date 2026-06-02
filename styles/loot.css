@@ -435,6 +435,17 @@ textarea.gllg-settings-textarea{width:100%;min-height:7.5em;resize:vertical;
   text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:700;color:var(--ink);cursor:pointer}
 .gllg-genform .gllg-check input{flex:0 0 auto;margin-top:1px;width:auto}
 .gllg-genform .gllg-check input:disabled{opacity:.5;cursor:not-allowed}
+
+/* ---- creature-sourced loot block in the workshop dialog ---- */
+.gllg-workshop .gllg-creatures{display:flex;flex-direction:column;gap:6px}
+.gllg-workshop .gllg-creature-toggle{margin-top:1px}
+.gllg-workshop .gllg-creature-empty{margin:0;display:flex;align-items:flex-start;gap:7px;line-height:1.45}
+.gllg-workshop .gllg-creature-empty i{margin-top:2px;color:var(--tint);opacity:.8}
+.gllg-workshop .gllg-creature-chips{display:flex;flex-wrap:wrap;gap:5px;padding-left:24px}
+.gllg-workshop .gllg-creature-chip{display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;color:var(--ink);
+  background:rgba(107,134,214,.12);border:1px solid rgba(155,179,224,.30);cursor:help}
+.gllg-workshop .gllg-creature-chip .gllg-dim{font-weight:600}
 .gllg-genform .gllg-llm-toggle{padding-top:2px}
 
 /* ---- LLM call-log viewer (settings menu) ---- */

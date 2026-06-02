@@ -16,6 +16,7 @@ import { MODULE_ID, SETTINGS, TARGET } from "../const.js";
 import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
 import { iconNoteHtml } from "./icon-note.js";
 import { logLlmCall } from "./llm-log.js";
+import { sourcesLabel } from "./creature-sources.js";
 
 // Authoring scales with how many items the model writes — a single item is
 // quick, but a batch can take a while. The cap keeps a runaway request bounded.
@@ -75,14 +76,37 @@ function normalizeParams(p = {}) {
   const count = clampInt(p.count, 1, 8, 1);
   const lvlNum = parseInt(p.level, 10);                 // blank / "party level" → null
   const level = Number.isFinite(lvlNum) ? Math.max(0, Math.min(25, lvlNum)) : null;
+  const sources = normalizeSources(p.sources);
+  const lootKind = LOOT_KINDS.has(p.lootKind) ? p.lootKind : "both";
   return {
     prompt: String(p.prompt ?? "").trim().slice(0, 1500),
     count,
     level,
     rarity: p.rarity || "any",
     notes: String(p.notes ?? "").trim().slice(0, 600),
-    label: String(p.label ?? "").trim() || "Custom loot"
+    label: String(p.label ?? "").trim() || (sources.length ? `Loot from ${sourcesLabel(sources)}` : "Custom loot"),
+    // Creature-sourced loot (DESIGN §7, §13): the model authors items found on /
+    // harvested from these creatures. Empty → a plain free-text workshop request.
+    sources,
+    lootKind
   };
+}
+
+const LOOT_KINDS = new Set(["carried", "harvested", "both"]);
+
+/** Re-clamp creature source descriptors (they ride in/out of the proposal flag). */
+function normalizeSources(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 8).map(s => ({
+    name: String(s?.name ?? "").trim().slice(0, 80),
+    level: clampInt(s?.level, -1, 25, 0),
+    rarity: String(s?.rarity ?? "common").toLowerCase().slice(0, 20),
+    size: String(s?.size ?? "med").slice(0, 12),
+    traits: Array.isArray(s?.traits) ? s.traits.map(t => String(t).slice(0, 40)).slice(0, 16) : [],
+    gear: Array.isArray(s?.gear) ? s.gear.map(g => String(g).slice(0, 80)).slice(0, 12) : [],
+    lore: String(s?.lore ?? "").slice(0, 300),
+    count: clampInt(s?.count, 1, 99, 1)
+  })).filter(s => s.name);
 }
 
 /* ------------------------------ sidecar transport ------------------------------ */
@@ -99,6 +123,9 @@ async function callWorkshop(params) {
     // (Sending an explicit null trips Number(null)===0 on the server side.)
     ...(params.level != null ? { level: params.level } : {}),
     rarity: params.rarity,
+    // Creature sources (DESIGN §7, §13) — when present the model authors loot
+    // found on / harvested from these creatures, provenance attributed per one.
+    ...(params.sources?.length ? { sources: params.sources, lootKind: params.lootKind } : {}),
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: params.notes,
     party: partyBlurb(),
@@ -151,7 +178,7 @@ function buildWorkshopProposal(params, specs) {
   specs.forEach((raw, i) => {
     const spec = sanitizeSpec(raw);
     if (!spec.name) return;
-    const itemData = buildCustomItemData(spec, params.prompt);
+    const itemData = buildCustomItemData(spec, params.prompt, params.sources);
     picks.push({
       uuid: `gllg-custom-${i}`,   // synthetic id (remove/dedupe in the card)
       custom: true,
@@ -191,7 +218,10 @@ function buildWorkshopProposal(params, specs) {
     totalGp,
     itemCount: picks.length,
     currencyGp: 0,
-    workshop: { prompt: params.prompt, count: params.count, level: params.level, rarity: params.rarity, notes: params.notes, label: params.label }
+    workshop: {
+      prompt: params.prompt, count: params.count, level: params.level, rarity: params.rarity,
+      notes: params.notes, label: params.label, sources: params.sources, lootKind: params.lootKind
+    }
   };
 }
 
@@ -204,9 +234,15 @@ function buildWorkshopProposal(params, specs) {
  * type won't validate, it falls back to a generic `equipment` item so the pick
  * is never lost. No hardcoded flavor — every player-facing string is authored.
  */
-function buildCustomItemData(spec, prompt) {
+function buildCustomItemData(spec, prompt, sources) {
   const description = buildDescription(spec);
-  const flags = { [MODULE_ID]: { workshop: true, prompt: String(prompt ?? "").slice(0, 500) } };
+  const wf = { workshop: true, prompt: String(prompt ?? "").slice(0, 500) };
+  // Record which creatures this loot was derived from, so the origin is
+  // traceable on the item itself (the GM can also see it in the provenance line).
+  if (Array.isArray(sources) && sources.length) {
+    wf.sources = sources.map(s => String(s?.name ?? "").slice(0, 80)).filter(Boolean).slice(0, 8);
+  }
+  const flags = { [MODULE_ID]: wf };
 
   const data = {
     name: spec.name,

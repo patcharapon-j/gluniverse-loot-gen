@@ -46,6 +46,15 @@ Then enable it in a world running the **Pathfinder 2e** system.
   unaffected.
 - **LLM provenance flavor** *(opt-in)* — one batched `claude -p` call per hoard adds
   cosmetic provenance text. Fully graceful: any failure drops loot with plain rules-text.
+- **Loot Workshop** *(opt-in, needs the sidecar)* — describe loot in plain words and the
+  `claude -p` sidecar **authors bespoke PF2e items** (type, traits, fair price, encoded
+  dice/DCs), reviewed on the same card. `/grill-me`, `Alt+W`, or the hammer button.
+- **Loot from creatures** *(Workshop)* — **select one or more creature tokens** and the
+  Workshop bases the loot **on / from** them: carried gear & keepsakes, or **harvested
+  monster parts** (scales, fangs, glands, cores) — your pick per batch. Item level/count
+  default from the creatures, provenance names each source, and harvested parts carry a
+  clickable **harvest check** (Nature/Survival/Crafting). Just select tokens and run
+  `/grill-me`.
 
 ---
 

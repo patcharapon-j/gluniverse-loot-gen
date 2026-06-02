@@ -162,6 +162,27 @@ Both endpoints also accept an optional **`campaign`** field (the GM's *Campaign
 Context* module setting) and a per-request **`notes`** field, so generated flavor
 and custom loot can be grounded in your world.
 
+### Loot from creatures
+
+`/workshop` also accepts an optional **`sources`** array and a **`lootKind`**
+(`"carried"` / `"harvested"` / `"both"`). When the GM has creature tokens selected,
+the module reads each into a bounded descriptor — `name`, `level`, `rarity`, `size`,
+`traits`, the names of the physical `gear` it carries, and a trimmed `lore` snippet —
+and the prompt frames the batch as loot **found on / harvested from** those creatures.
+Each item's provenance names the specific source creature, and (for `harvested` /
+`both`) the prompt asks for a clickable **harvest check** at the item's level-based DC
+(Nature/Survival/Crafting; crit = bonus, fail = spoiled — DESIGN §13). The free-text
+`prompt` becomes optional extra steering; with sources present it may be empty.
+
+```bash
+curl -s -X POST localhost:7878/workshop \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"count":2,"lootKind":"both",
+       "sources":[{"name":"Frost Drake","level":5,"rarity":"uncommon","size":"lg",
+                   "traits":["dragon","cold"],"gear":["Hoard coins"],
+                   "lore":"An ancient wyrm of the northern peaks."}]}'
+```
+
 ```bash
 curl -s -X POST localhost:7878/workshop \
   -H 'content-type: application/json' -H 'x-gllg-secret: test' \
