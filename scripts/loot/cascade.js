@@ -13,14 +13,17 @@
  * ride along in a chat-message flag (survives reroll/approve across a reload).
  */
 
-import { CORE_RATIO, SETTINGS, SEVERITY } from "../const.js";
+import { CORE_RATIO, SETTINGS, SEVERITY, MODULE_ID } from "../const.js";
 import {
   getItemIndex, filterCandidates, weightFor, weightedPick, findRune, mundaneBases
 } from "./item-selector.js";
 import { buildReport } from "../auditor/health-check.js";
 import { expectedFundamentals } from "../pf2e/tables.js";
 import { buildRuneSet, themeRuneSlugs } from "../pf2e/runes.js";
-import { signatureWeapon, signatureArmor } from "../pf2e/actor-reader.js";
+import { signatureWeapon, signatureArmor, resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import {
+  requestSelectionProfile, applyExclude, profileWeight, rarityLeanBias, resolveWanted
+} from "./selection-profile.js";
 
 const ARMOR_AXES = new Set(["defense", "resilient"]);
 
@@ -62,6 +65,15 @@ export async function proposeLoot(request) {
   const heirloom = heirloomEnabled();
   const etch = etchEnabled();
   const themeSlugs = themeRuneSlugs(tags);
+
+  // Optional LLM "curator" (DESIGN §18): turn the GM's free-text concept into a
+  // selection profile — trait weights, a rarity lean, named wants, and
+  // exclusions. It only steers the DISCRETIONARY layers (named wants + the fun
+  // layer); the math-critical fundamental and wealth-drift phases stay entirely
+  // code-owned, so the wealth ledger is never skewed by the model. Graceful — a
+  // null profile (no brief / no sidecar / failure) falls back to pure theming.
+  const profile = await planLoot(request, level, tags);
+  if (profile) reasoning.push("Discretionary picks steered by the LLM curator from your context note.");
 
   const buy = (item, extra) => {
     if (!item) return false;
@@ -106,13 +118,16 @@ export async function proposeLoot(request) {
   // it pulls a pre-made magic item. Returns { runed:{base,set} } | { item } |
   // null. Commits via `place`.
   const pickGear = (maxGp, { unusualBias = 0 } = {}) => {
+    // A rarity lean from the brief nudges toward the unusual pool (level window
+    // unchanged, so the budget math holds).
+    const bias = profile ? clamp(unusualBias + rarityLeanBias(profile.rarityLean), -0.9, 2) : unusualBias;
     if (etch && maxGp >= MIN_RUNED_GP && Math.random() < RUNED_GEAR_CHANCE) {
-      const kind = Math.random() < 0.5 ? "weapon" : "armor";
+      const kind = runedKind(profile);
       const runed = pickRunedGear(index, { level, tags, maxGp, used, kind, themeSlugs })
         ?? pickRunedGear(index, { level, tags, maxGp, used, themeSlugs, kind: kind === "weapon" ? "armor" : "weapon" });
       if (runed) return { runed };
     }
-    const item = pickPermanent(index, { level, tags, maxGp, used, unusualBias });
+    const item = pickPermanent(index, { level, tags, maxGp, used, unusualBias: bias, profile });
     return item ? { item } : null;
   };
 
@@ -189,6 +204,21 @@ export async function proposeLoot(request) {
     }
   }
 
+  /* ---- Phase 2.5: named wants from the brief (discretionary, budgeted) ---- */
+  // Items the GM's concept said the haul would surely contain — each resolved to
+  // a REAL, priced, level-bounded compendium entry. Bought after the math-
+  // critical phases but before the random fun layer, and only when affordable.
+  if (profile?.wanted?.length && remaining >= MIN_ITEM_GP) {
+    for (const name of profile.wanted) {
+      if (remaining < MIN_ITEM_GP || picks.length >= cap) break;
+      const it = resolveWanted(index, name, { maxLevel: level + 2, used });
+      if (it && it.gp <= remaining) {
+        buy(it, { reason: `Included to match your context note — “${String(name).slice(0, 40)}”` });
+        reasoning.push(`Included “${it.name}” to match your context note.`);
+      }
+    }
+  }
+
   /* ---- Phase 3: fun layer (themed permanents + consumables) ---- */
   // A couple of permanents, leaning unusual per the core/unusual split.
   let safety = 0;
@@ -196,7 +226,7 @@ export async function proposeLoot(request) {
     // Alternate permanents and consumables; consumables sit 2–3 levels below.
     const wantConsumable = safety % 2 === 0;
     if (wantConsumable) {
-      const c = pickConsumable(index, { level, tags, maxGp: remaining, used });
+      const c = pickConsumable(index, { level, tags, maxGp: remaining, used, profile });
       if (c) { buy(c, { reason: themeReason(c, tags) }); continue; }
       // Fall through to a permanent if no consumable fits.
       const res = pickGear(remaining, { unusualBias: funBias });
@@ -207,7 +237,7 @@ export async function proposeLoot(request) {
     const res = pickGear(remaining, { unusualBias: funBias });
     if (res) { place(res); continue; }
     // Try a consumable once before giving up.
-    const c = pickConsumable(index, { level, tags, maxGp: remaining, used });
+    const c = pickConsumable(index, { level, tags, maxGp: remaining, used, profile });
     if (!c) break;
     buy(c, { reason: themeReason(c, tags) });
   }
@@ -249,9 +279,26 @@ async function proposeSingle(request) {
     : kind === "permanent" ? PERMANENT_TYPES
     : new Set([...PERMANENT_TYPES, ...CONSUMABLE_TYPES]);
 
-  let cands = filterCandidates(index, { minLevel: Math.max(0, itemLevel - 1), maxLevel: itemLevel + 1, types });
-  if (!cands.length) cands = filterCandidates(index, { minLevel: Math.max(0, itemLevel - 2), maxLevel: itemLevel + 2, types });
-  const item = weightedPick(cands, it => weightFor(it, { tags, preferLevel: itemLevel }));
+  // Optional LLM curator: the brief can name a specific want or steer trait/
+  // rarity selection of the one item (graceful — null = plain theming).
+  const profile = await planLoot(request, itemLevel, tags);
+
+  let item = null;
+  let named = false;
+  if (profile?.wanted?.length) {
+    for (const name of profile.wanted) {
+      const it = resolveWanted(index, name, { maxLevel: itemLevel + 1, used: new Set() });
+      if (it && (kind === "any" || types.has(it.type))) { item = it; named = true; break; }
+    }
+  }
+  if (!item) {
+    let cands = filterCandidates(index, { minLevel: Math.max(0, itemLevel - 1), maxLevel: itemLevel + 1, types });
+    if (!cands.length) cands = filterCandidates(index, { minLevel: Math.max(0, itemLevel - 2), maxLevel: itemLevel + 2, types });
+    if (profile) cands = applyExclude(cands, profile.exclude);
+    item = weightedPick(cands, it => profile
+      ? profileWeight(it, { profile, tags, preferLevel: itemLevel, unusualBias: rarityLeanBias(profile.rarityLean) })
+      : weightFor(it, { tags, preferLevel: itemLevel }));
+  }
 
   const picks = [];
   const reasoning = [];
@@ -259,10 +306,13 @@ async function proposeSingle(request) {
     picks.push({
       uuid: item.uuid, name: item.name, img: item.img, type: item.type,
       level: item.level, gp: round2(item.gp), qty: 1, rarity: item.rarity,
-      tier: classifyTier(item), reason: `Ad-hoc single ${item.type} near level ${itemLevel}`,
+      tier: classifyTier(item),
+      reason: named ? `Picked to match your context note` : `Ad-hoc single ${item.type} near level ${itemLevel}`,
       forActorId: null, forActorName: null
     });
-    reasoning.push(`Generated one ${item.type} (level ${item.level}) near target level ${itemLevel}.`);
+    reasoning.push(named
+      ? `Picked “${item.name}” (level ${item.level}) to match your context note.`
+      : `Generated one ${item.type} (level ${item.level}) near target level ${itemLevel}.`);
   } else {
     reasoning.push(`No matching item found near level ${itemLevel}.`);
   }
@@ -330,20 +380,34 @@ function runedReason(base, set) {
   return `Etched ${runes} ${base.name}`.replace(/\s+/g, " ").trim();
 }
 
-function pickPermanent(index, { level, tags, maxGp, used, unusualBias = 0 }) {
-  const cands = filterCandidates(index, {
+function pickPermanent(index, { level, tags, maxGp, used, unusualBias = 0, profile = null }) {
+  let cands = filterCandidates(index, {
     minLevel: Math.max(0, level - 1), maxLevel: level + 2, maxGp,
     types: PERMANENT_TYPES, excludeUuids: used
   });
-  return weightedPick(cands, it => weightFor(it, { tags, preferLevel: level + 1, unusualBias }));
+  if (profile) cands = applyExclude(cands, profile.exclude);
+  return weightedPick(cands, it => profile
+    ? profileWeight(it, { profile, tags, preferLevel: level + 1, unusualBias })
+    : weightFor(it, { tags, preferLevel: level + 1, unusualBias }));
 }
 
-function pickConsumable(index, { level, tags, maxGp, used }) {
-  const cands = filterCandidates(index, {
+function pickConsumable(index, { level, tags, maxGp, used, profile = null }) {
+  let cands = filterCandidates(index, {
     minLevel: Math.max(0, level - 3), maxLevel: Math.max(0, level - 1), maxGp,
     types: CONSUMABLE_TYPES, excludeUuids: used
   });
-  return weightedPick(cands, it => weightFor(it, { tags, preferLevel: level - 2, unusualBias: 0 }));
+  if (profile) cands = applyExclude(cands, profile.exclude);
+  return weightedPick(cands, it => profile
+    ? profileWeight(it, { profile, tags, preferLevel: level - 2, unusualBias: 0 })
+    : weightFor(it, { tags, preferLevel: level - 2, unusualBias: 0 }));
+}
+
+/** Pick the rune-etch kind, biased by the profile's weapon/armor typeMix. */
+function runedKind(profile) {
+  const w = Number(profile?.typeMix?.weapon) || 0;
+  const a = Number(profile?.typeMix?.armor) || 0;
+  if (w + a > 0) return Math.random() * (w + a) < w ? "weapon" : "armor";
+  return Math.random() < 0.5 ? "weapon" : "armor";
 }
 
 const PERMANENT_TYPES = new Set(["weapon", "armor", "shield", "equipment"]);
@@ -399,6 +463,46 @@ function distributeToParcels(request, picks, currencyGp) {
       totalGp: round2(b.spent + left)
     };
   });
+}
+
+/* ------------------------------ LLM curator ------------------------------ */
+
+/**
+ * Ask the sidecar to turn the GM's free-text concept into a selection profile
+ * for this haul (DESIGN §18 — the same "buyer" the shop uses, here a "curator").
+ * Gated on the LLM toggle + a sidecar + a non-empty brief, and graceful: any
+ * miss returns null and the cascade stocks by theme alone.
+ */
+async function planLoot(request, level, tags) {
+  if (!request?.meta?.useLlm || !llmPlanEnabled()) return null;
+  const brief = String(request?.meta?.extraContext ?? "").trim();
+  if (!brief) return null;
+  const payload = {
+    brief,
+    context: request.context,
+    level,
+    maxLevel: level + 2,
+    count: Number.isFinite(request.maxItems) ? request.maxItems : null,
+    theme: themeWordsFor(tags),
+    campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
+    model: String(safeSetting(SETTINGS.llmModel, "") ?? "").trim(),
+    party: partyBlurb()
+  };
+  try { return await requestSelectionProfile({ endpoint: "/loot-plan", payload, kind: "loot-plan" }); }
+  catch (err) { console.warn(`${MODULE_ID} | loot plan failed — theme fallback`, err); return null; }
+}
+
+function llmPlanEnabled() {
+  return !!safeSetting(SETTINGS.llmFlavor, false) && !!String(safeSetting(SETTINGS.sidecarUrl, "")).trim();
+}
+function themeWordsFor(tags) {
+  return [...(tags?.biomes ?? []), ...(tags?.factions ?? []), ...(tags?.traits ?? [])].slice(0, 5).join(", ");
+}
+function partyBlurb() {
+  try {
+    const { members } = resolveParty();
+    return members.slice(0, 8).map(m => `${m.name} (Lv ${actorLevel(m)})`).join(", ");
+  } catch { return ""; }
 }
 
 /* ------------------------------ utilities ------------------------------ */

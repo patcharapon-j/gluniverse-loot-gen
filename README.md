@@ -33,6 +33,11 @@ Then enable it in a world running the **Pathfinder 2e** system.
   gem button.
 - **Budget-aware generation** — four push-button contexts (Combat, Exploration cache,
   Dungeon, Quest reward) plus an ad-hoc **single item** mode. `Alt+G` or the wand button.
+  With the LLM on, a free-text **context note** ("water-themed gear from a drowned shrine")
+  becomes an LLM *curator* that steers **what** the haul contains — naming real, budgeted,
+  level-bounded items and weighting the discretionary "fun" layer by theme/rarity. The
+  math-critical fundamental-gap and wealth-drift picks stay code-owned, so the wealth
+  ledger is never skewed (the same engine that stocks shops, DESIGN §18).
 - **Prescriptive cascade** — spends the budget in order: fundamental gaps → wealth-drift
   correction → themed fun layer → currency, with a human-readable reason per pick.
 - **Theming** — auto-reads creature traits / scene tags, plus 12 biomes and 12 faction

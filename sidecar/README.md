@@ -254,3 +254,26 @@ curl -s -X POST localhost:7878/shop \
        "items":[{"id":"s0","name":"Longsword","type":"weapon","level":0,"rarity":"common"},
                 {"id":"s1","name":"Lesser Healing Potion","type":"consumable","level":1,"rarity":"common"}]}'
 ```
+
+### Concept-driven loot (`/loot-plan`)
+
+The **same buyer profile** also steers the regular loot cascade (Combat /
+Exploration / Dungeon / Quest / single item). When the GM writes a context note
+and the LLM is on, the module POSTs `brief` (plus `context`, `level`, `maxLevel`,
+`theme`, `campaign`, `party`) and the model — here the haul's **curator** —
+returns the identical selection-profile shape as `/shop-stock`:
+
+```bash
+curl -s -X POST localhost:7878/loot-plan \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"brief":"water-themed gear recovered from the drowned shrine of Gozreh",
+       "context":"dungeon","level":5,"maxLevel":7,"theme":"aquatic"}'
+```
+
+The difference is purely scope on the **module** side: a loot profile only steers
+the *discretionary* layer — the `wanted` items (resolved to real, **budgeted**,
+level-bounded entries and bought after the math-critical phases) and the fun-layer
+trait/rarity weighting. The fundamental-gap and wealth-drift picks remain
+code-owned, so the wealth ledger is never skewed. Most found loot leans
+common/uncommon (a black market leans restricted). Graceful as ever: no sidecar /
+bad JSON → the cascade themes the haul exactly as before.

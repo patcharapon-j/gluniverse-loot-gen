@@ -193,14 +193,20 @@ async function runGeneration(r) {
   const isShop = r.context === CONTEXT.SHOP;
   const useLlm = !!r.useLlm && (flavorEnabled() || (isShop && workshopEnabled()));
 
+  // The curator/buyer (DESIGN §18) reads meta.useLlm to decide whether to turn
+  // the context note into a selection profile. Set it for every context (the
+  // shop adapter also sets it; this keeps loot consistent).
+  request.meta.useLlm = useLlm;
+
   // LLM enrichment can take a few seconds — show a working card while it runs.
   // For shops the LLM also drives the STOCK itself (the buyer profile, DESIGN
   // §18), which happens inside proposeLoot, so the progress card must wrap both
   // the proposal and the decoration when the LLM is in play.
+  const hasBrief = !!String(r.extraContext ?? "").trim();
   let proposal;
   if (useLlm) {
     const progress = await beginProgress({
-      title: isShop ? "Stocking the shop…" : "Adding LLM flavor…",
+      title: isShop ? "Stocking the shop…" : (hasBrief ? "Curating & flavoring loot…" : "Adding LLM flavor…"),
       detail: r.context === CONTEXT.SHOP ? "Shop proposal" : "Loot proposal"
     });
     try {
