@@ -66,9 +66,13 @@ Then enable it in a world running the **Pathfinder 2e** system.
   is just a place to *spend* gp the party already has, stocking one **never touches the wealth
   ledger** (the Auditor stays truthful). Lands in a **Shops** folder, created GM-only so it
   doesn't spoil — reveal it when the party arrives; they buy at list and sell back at 50%. With
-  the LLM on, one call adds a **named shopkeeper** (voice, sign, and why the stock is here) plus
-  per-item provenance, and the Workshop authors 1–2 **signature** items the shop is known for.
-  The **shop button**, `Alt+S`, or the Generate dialog's **Shop** context.
+  the LLM on, **describe the shop in plain words** ("black-market potion dealer in the sewers")
+  and an LLM *buyer* stocks it to match — curating real, correctly-priced compendium items
+  (poisons, illicit elixirs…) by type/trait/rarity, plus named pulls. It also adds a **named
+  shopkeeper** (voice, sign, and why the stock is here), per-item provenance, and 1–2 bespoke
+  **signature** items the shop is known for. Briefs can lean toward restricted (uncommon/rare)
+  goods, but item levels stay bounded to the tier. The **shop button**, `Alt+S`, or the Generate
+  dialog's **Shop** context.
 - **Loot from creatures** *(Workshop)* — **select one or more creature tokens** and the
   Workshop bases the loot **on / from** them: carried gear & keepsakes, or **harvested
   monster parts** (scales, fangs, glands, cores) — your pick per batch. Item level/count

@@ -68,25 +68,53 @@ export async function proposeShop(request) {
   const spec = SHOP_TIERS[tier];
   const tags = request.tags;
 
-  const count = clampInt(request.maxItems ?? randInt(spec.count[0], spec.count[1]), 1, 40);
-
   // Core-vs-unusual: shopping-access baseline + the tier's unusual lean (DESIGN §8).
   const access = safeSetting(SETTINGS.shoppingAccess, "limited");
   const coreRatio = CORE_RATIO[access] ?? 0.75;
-  const unusualBias = clamp((1 - coreRatio) + spec.unusual, 0, 1);
+  const baseUnusual = clamp((1 - coreRatio) + spec.unusual, 0, 1);
 
   const etch = !!safeSetting(SETTINGS.etchRunes, true);
   const themeSlugs = themeRuneSlugs(tags);
   const maxLevel = level + spec.maxOffset;
 
+  // Optional LLM "buyer" (DESIGN §18): turn the GM's free-text concept into a
+  // selection profile — item-type mix, trait weights, rarity lean, and a list of
+  // specific items the shop would surely carry. The CODE still owns reality: the
+  // named items are resolved to REAL, priced, level-bounded compendium entries,
+  // and every fill slot comes from the live index. Graceful — a null profile
+  // (no brief / no sidecar / failure) falls back to pure tier-theme selection.
+  const profile = await planStock(request, {
+    tier, level, maxLevel,
+    count: Math.round((spec.count[0] + spec.count[1]) / 2),
+    themeWords: themeWords(tags)
+  });
+
+  // GM's explicit count wins; else the buyer's count; else the tier band.
+  const count = clampInt(request.maxItems ?? profile?.count ?? randInt(spec.count[0], spec.count[1]), 1, 40);
+  // The brief may lean the shelf toward restricted (uncommon/rare) goods — rarity
+  // is unbounded by access, but item LEVEL still respects the tier's reach.
+  const unusualBias = profile ? clamp(baseUnusual + rarityLeanBias(profile.rarityLean), 0, 1) : baseUnusual;
+
   const used = new Set();
   const items = [];
+  const themeOpts = { level, tags, used, maxLevel, unusualBias, etch, etchChance: spec.etchChance, themeSlugs };
+
+  // 1) Named wants first — each resolved to a real, level-bounded compendium item.
+  if (profile?.wanted?.length) {
+    for (const name of profile.wanted) {
+      if (items.length >= count) break;
+      const it = resolveWanted(index, name, { maxLevel, used });
+      if (it) { used.add(it.uuid); items.push(toPick(it, `Stocked to brief — “${clip(name, 40)}”`)); }
+    }
+  }
+
+  // 2) Fill the rest — by the LLM profile when present, else the tier's theme mix.
   let safety = 0;
-  const opts = { level, tags, used, maxLevel, unusualBias, etch, etchChance: spec.etchChance, themeSlugs };
-  while (items.length < count && safety++ < count * 5) {
-    const wantConsumable = Math.random() < spec.consumableShare;
-    let pick = wantConsumable ? pickShopConsumable(index, opts) : pickShopPermanent(index, opts);
-    if (!pick) pick = wantConsumable ? pickShopPermanent(index, opts) : pickShopConsumable(index, opts);
+  while (items.length < count && safety++ < count * 6) {
+    let pick = profile
+      ? pickByProfile(index, { profile, ...themeOpts })
+      : pickTheme(index, themeOpts, spec.consumableShare);
+    if (!pick) pick = pickTheme(index, themeOpts, spec.consumableShare); // always have a fallback
     if (!pick) break;
     used.add(pick.uuid);
     items.push(pick);
@@ -97,10 +125,10 @@ export async function proposeShop(request) {
 
   const totalGp = round2(items.reduce((s, x) => s + x.gp, 0));
   const target = request.target ?? TARGET.MERCHANT;
-  const reasoning = [
-    `Stocked a ${spec.label.toLowerCase()} with ${items.length} item(s)${themeLabel(tags)}.`,
-    "Budget-neutral — players buy with their own coin; nothing is booked to the wealth ledger."
-  ];
+  const reasoning = [];
+  if (profile) reasoning.push(`Stocked to your concept via the LLM buyer${themeLabel(tags)}.`);
+  reasoning.push(`Stocked a ${spec.label.toLowerCase()} with ${items.length} item(s)${profile ? "" : themeLabel(tags)}.`);
+  reasoning.push("Budget-neutral — players buy with their own coin; nothing is booked to the wealth ledger.");
 
   return {
     id: `gllg-shop-${tier}-${items.length}-${Date.now()}`,
@@ -183,6 +211,217 @@ function shopReason(item, tags) {
   if (hits.length) return `On the shelf — themed (${hits.slice(0, 2).join(", ")})`;
   if (item.type === "consumable") return "Stock consumable";
   return item.rarity && item.rarity !== "common" ? "Specialty stock" : "Common stock";
+}
+
+/** One theme-driven slot: a consumable or permanent per the tier's share. */
+function pickTheme(index, opts, consumableShare) {
+  const wantConsumable = Math.random() < consumableShare;
+  return (wantConsumable ? pickShopConsumable(index, opts) : pickShopPermanent(index, opts))
+    ?? (wantConsumable ? pickShopPermanent(index, opts) : pickShopConsumable(index, opts));
+}
+
+/* ------------------------ LLM-profile-driven selection ------------------------ */
+
+const PROFILE_TYPES = ["weapon", "armor", "equipment", "consumable", "treasure"];
+
+/**
+ * Fill one slot per the LLM buyer's profile (DESIGN §18): sample an item TYPE
+ * from its typeMix, then weight the live candidates by the profile's trait
+ * weights + rarity lean (rune-etching a weapon/armor slot as usual). The level
+ * window is unchanged — rarity may climb, level stays tier-bounded.
+ */
+function pickByProfile(index, { profile, level, tags, used, maxLevel, unusualBias, etch, etchChance, themeSlugs }) {
+  const type = sampleType(profile.typeMix);
+  if (etch && (type === "weapon" || type === "armor") && Math.random() < etchChance) {
+    const runed = makeRuned(index, { level, tags, used, themeSlugs, kind: type });
+    if (runed) return runed;
+  }
+  const isCons = type === "consumable";
+  const types = type ? new Set([type]) : PERMANENT_TYPES;
+  const maxL = isCons ? Math.max(0, maxLevel - 1) : maxLevel;
+  let cands = filterCandidates(index, { minLevel: 0, maxLevel: maxL, types, excludeUuids: used });
+  cands = applyExclude(cands, profile.exclude);
+  if (!cands.length) return null;
+  const preferLevel = isCons ? Math.max(0, level - 1) : level;
+  const item = weightedPick(cands, it => profileWeight(it, { profile, tags, preferLevel, unusualBias }));
+  return item ? toPick(item, profileReason(item, profile)) : null;
+}
+
+/** Theme weight, multiplied by the profile's per-trait boosts. */
+function profileWeight(item, { profile, tags, preferLevel, unusualBias }) {
+  let w = weightFor(item, { tags, preferLevel, unusualBias });
+  const tw = profile.traitWeights || {};
+  for (const t of item.traits || []) {
+    const f = tw[t];
+    if (f) w *= Math.max(0.1, Number(f) || 1);
+  }
+  return w;
+}
+
+/** Weighted-random one of the allowed item types from the buyer's typeMix. */
+function sampleType(typeMix) {
+  const entries = Object.entries(typeMix || {})
+    .map(([k, v]) => [String(k).toLowerCase(), Math.max(0, Number(v) || 0)])
+    .filter(([k, v]) => PROFILE_TYPES.includes(k) && v > 0);
+  if (!entries.length) return null;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  let r = Math.random() * total;
+  for (const [k, v] of entries) { r -= v; if (r <= 0) return k; }
+  return entries[entries.length - 1][0];
+}
+
+/** A "rarity lean" → an unusual-pool bias delta added to the baseline. */
+function rarityLeanBias(lean) {
+  switch (String(lean ?? "").toLowerCase()) {
+    case "rare": return 0.8;
+    case "uncommon": return 0.4;
+    case "common": return -0.2;
+    default: return 0;
+  }
+}
+
+/** Drop candidates whose traits or name hit any exclusion term. */
+function applyExclude(cands, exclude) {
+  const terms = (Array.isArray(exclude) ? exclude : []).map(s => String(s).toLowerCase().trim()).filter(Boolean);
+  if (!terms.length) return cands;
+  const traitSet = new Set(terms);
+  return cands.filter(it => {
+    if ((it.traits || []).some(t => traitSet.has(String(t).toLowerCase()))) return false;
+    const name = String(it.name).toLowerCase();
+    return !terms.some(term => name.includes(term));
+  });
+}
+
+function profileReason(item, profile) {
+  const tw = profile.traitWeights || {};
+  const hit = (item.traits || []).find(t => tw[t]);
+  if (hit) return `Fits the concept (${hit})`;
+  if (item.rarity && item.rarity !== "common") return "Restricted stock for the concept";
+  return "Stocked to the concept";
+}
+
+/**
+ * Resolve a buyer-named item to a REAL, priced, level-bounded compendium entry by
+ * fuzzy name match. Exact (normalized) name wins; otherwise the best token
+ * overlap above a threshold, cheapest on ties. Never returns an over-level or
+ * already-used item, so a named want can't smuggle in illegal/overpowered stock.
+ */
+function resolveWanted(index, name, { maxLevel, used }) {
+  const want = nameTokens(name);
+  if (!want.size) return null;
+  const wantSlug = [...want].join("-");
+
+  let exact = null, best = null, bestScore = 0;
+  for (const it of index) {
+    if (it.level > maxLevel || used.has(it.uuid)) continue;
+    const slug = normSlug(it.name);
+    if (slug === wantSlug) { if (!exact || it.gp < exact.gp) exact = it; continue; }
+    const toks = nameTokens(it.name);
+    let overlap = 0;
+    for (const t of want) if (toks.has(t)) overlap++;
+    const score = overlap / want.size;
+    if (score > bestScore || (score === bestScore && best && it.gp < best.gp)) { bestScore = score; best = it; }
+  }
+  if (exact) return exact;
+  return bestScore >= 0.5 ? best : null; // require at least half the words to match
+}
+
+const STOPWORDS = new Set(["of", "the", "a", "an", "and", "potion", "scroll", "elixir", "oil"]);
+function normSlug(s) {
+  return String(s ?? "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function nameTokens(s) {
+  return new Set(normSlug(s).split("-").filter(t => t && !STOPWORDS.has(t)));
+}
+
+/* ------------------------------ stock planning ------------------------------ */
+
+const STOCK_REQUEST_TIMEOUT_MS = 90000; // client cap; must exceed the sidecar's own
+
+/**
+ * Ask the sidecar to turn the GM's free-text shop concept into a selection
+ * profile. Gated (needs the LLM toggle + a brief + a sidecar) and graceful —
+ * any miss returns null and the caller stocks by tier-theme instead.
+ */
+async function planStock(request, ctx) {
+  if (!request.meta?.useLlm || !flavorOn()) return null;
+  const brief = String(request.meta?.extraContext ?? "").trim();
+  if (!brief) return null;
+  try { return await callShopStock(brief, ctx); }
+  catch (err) { console.warn(`${MODULE_ID} | shop stock planning failed — theme fallback`, err); return null; }
+}
+
+async function callShopStock(brief, ctx) {
+  const base = String(safeSetting(SETTINGS.sidecarUrl, "")).trim().replace(/\/+$/, "");
+  if (!base) return null;
+  const secret = String(safeSetting(SETTINGS.sidecarSecret, "")).trim();
+
+  const payload = {
+    brief,
+    tier: ctx.tier,
+    level: ctx.level,
+    maxLevel: ctx.maxLevel,
+    count: ctx.count,
+    theme: ctx.themeWords,
+    campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
+    model: String(safeSetting(SETTINGS.llmModel, "") ?? "").trim(),
+    party: partyBlurb()
+  };
+
+  const t0 = Date.now();
+  const modelNote = payload.model ? ` · model ${payload.model}` : "";
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), STOCK_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}/shop-stock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(secret ? { "x-gllg-secret": secret } : {}) },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+    if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
+    const data = await res.json();
+    const profile = sanitizeProfile(data?.profile ?? data);
+    logLlmCall({ kind: "shop-stock", endpoint: "/shop-stock", ok: true, status: res.status,
+      ms: Date.now() - t0, detail: `planned ${profile?.wanted?.length ?? 0} named + mix${modelNote}` });
+    return profile;
+  } catch (err) {
+    logLlmCall({ kind: "shop-stock", endpoint: "/shop-stock", ok: false, ms: Date.now() - t0,
+      detail: "stock plan", error: errText(err) });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Defensive client-side sanitize of a buyer profile (the server also clamps). */
+function sanitizeProfile(p) {
+  if (!p || typeof p !== "object") return null;
+  const typeMix = {};
+  if (p.typeMix && typeof p.typeMix === "object") {
+    for (const [k, v] of Object.entries(p.typeMix)) {
+      const key = String(k).toLowerCase();
+      if (PROFILE_TYPES.includes(key)) typeMix[key] = clamp(Number(v) || 0, 0, 1);
+    }
+  }
+  const traitWeights = {};
+  if (p.traitWeights && typeof p.traitWeights === "object") {
+    for (const [k, v] of Object.entries(p.traitWeights)) {
+      const slug = normSlug(k);
+      if (slug) traitWeights[slug] = clamp(Number(v) || 1, 0.1, 8);
+    }
+  }
+  const wanted = (Array.isArray(p.wanted) ? p.wanted : [])
+    .map(s => clip(String(s ?? "").trim(), 60)).filter(Boolean).slice(0, 12);
+  const exclude = (Array.isArray(p.exclude) ? p.exclude : [])
+    .map(s => String(s ?? "").toLowerCase().trim().slice(0, 40)).filter(Boolean).slice(0, 12);
+  const rarityLean = ["common", "uncommon", "rare"].includes(String(p.rarityLean ?? "").toLowerCase())
+    ? String(p.rarityLean).toLowerCase() : null;
+  const count = Number.isFinite(Number(p.count)) ? clampInt(p.count, 1, 40) : null;
+
+  // A profile with no usable signal is no profile — fall back to theme.
+  if (!Object.keys(typeMix).length && !Object.keys(traitWeights).length && !wanted.length && !rarityLean) return null;
+  return { typeMix, traitWeights, wanted, exclude, rarityLean, count };
 }
 
 /* ------------------------------ LLM enrichment ------------------------------ */
@@ -360,6 +599,7 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 function clampInt(v, lo, hi) { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : lo; }
 function round2(n) { return Math.round(n * 100) / 100; }
 function clean(s, max = 400) { return String(s ?? "").replace(/\s+/g, " ").trim().slice(0, max); }
+function clip(s, max) { return String(s ?? "").slice(0, max); }
 function safeSetting(key, fallback) { try { return game.settings.get(MODULE_ID, key); } catch { return fallback; } }
 function errText(err) {
   if (err?.name === "AbortError") return "timed out (client)";

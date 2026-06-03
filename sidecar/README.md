@@ -214,6 +214,38 @@ so all of its sanitization/pricing is reused. Same security posture (auth gate,
 no shell, timeout, caps), same graceful fallback — any failure leaves the shop
 fully usable with plain rules-text.
 
+### Concept-driven stock (`/shop-stock`)
+
+This is what lets a free-text concept actually drive **what** the shop sells. The
+module POSTs the GM's `brief` (plus `tier`, `level`, `maxLevel`, `theme`,
+`campaign`, `party`), and the model — acting as the shop's **buyer** — returns a
+**selection profile**, *not* items or prices:
+
+```json
+{ "count": 14,
+  "typeMix": { "consumable": 0.7, "equipment": 0.25, "weapon": 0.05 },
+  "traitWeights": { "poison": 3, "alchemical": 2, "illusion": 1.5 },
+  "rarityLean": "uncommon",
+  "wanted": ["antidote", "invisibility potion", "drow poison", "alchemist's fire"],
+  "exclude": ["holy", "armor"] }
+```
+
+The **module** then resolves this against its real compendium: each `wanted`
+name is fuzzy-matched to a real, priced item **at or below `maxLevel`** (unmatched
+or over-level names are dropped), and the remaining slots are filled by the
+engine's weighted selector steered by `typeMix`/`traitWeights`/`rarityLean`. So a
+*"black-market potion dealer"* yields a shelf of real PF2e poisons and illicit
+elixirs — correctly priced — rather than invented gear. Rarity may lean
+restricted; item **level stays tier-bounded**. Graceful: no sidecar / bad JSON →
+the module stocks by theme tags as before.
+
+```bash
+curl -s -X POST localhost:7878/shop-stock \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"brief":"black-market potion dealer in the sewers — poisons & illicit elixirs",
+       "tier":"shop","level":4,"maxLevel":6,"theme":"urban"}'
+```
+
 ```bash
 curl -s -X POST localhost:7878/shop \
   -H 'content-type: application/json' -H 'x-gllg-secret: test' \

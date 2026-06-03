@@ -80,7 +80,7 @@ function buildForm(presetContext) {
     <div class="gllg-field" data-for="single"><label>Item level <span class="gllg-dim">(blank = party level)</span></label><input type="number" name="itemLevel" min="0" max="25" placeholder="party level"></div>
     <div class="gllg-field" data-for="all"><label>Biome</label>${biome}</div>
     <div class="gllg-field" data-for="all"><label>Faction</label>${faction}</div>
-    <div class="gllg-field" data-for="all"><label>Additional context <span class="gllg-dim">(optional — this generation only, fed to the LLM)</span></label><textarea name="extraContext" rows="2" placeholder="e.g. recovered from the drowned shrine of Gozreh, after the storm"></textarea></div>
+    <div class="gllg-field" data-for="all"><label>Additional context / shop concept <span class="gllg-dim">(optional — fed to the LLM; for shops it stocks to match)</span></label><textarea name="extraContext" rows="2" placeholder="loot: 'recovered from the drowned shrine of Gozreh' · shop: 'black-market potion dealer in the sewers — poisons & illicit elixirs'"></textarea></div>
     ${llmToggle()}
     <div class="gllg-row">
       <div class="gllg-field" data-for="all"><label>Party level <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="level" min="1" max="20" placeholder="auto"></div>
@@ -190,19 +190,25 @@ async function runGeneration(r) {
     ui.notifications?.warn("GLLG: computed budget is 0 — check party level and (for combat) your token selection.");
   }
 
-  const proposal = await proposeLoot(request);
-  // LLM enrichment can take a few seconds — show a working card while it runs.
-  // Shops also use the LLM to author a shopkeeper + signature stock, which only
-  // needs the sidecar (not the flavor toggle), so allow it on workshop-only too.
   const isShop = r.context === CONTEXT.SHOP;
   const useLlm = !!r.useLlm && (flavorEnabled() || (isShop && workshopEnabled()));
+
+  // LLM enrichment can take a few seconds — show a working card while it runs.
+  // For shops the LLM also drives the STOCK itself (the buyer profile, DESIGN
+  // §18), which happens inside proposeLoot, so the progress card must wrap both
+  // the proposal and the decoration when the LLM is in play.
+  let proposal;
   if (useLlm) {
     const progress = await beginProgress({
       title: isShop ? "Stocking the shop…" : "Adding LLM flavor…",
-      detail: proposal.label || (isShop ? "Shop proposal" : "Loot proposal")
+      detail: r.context === CONTEXT.SHOP ? "Shop proposal" : "Loot proposal"
     });
-    try { await decorateProposal(proposal); }   // optional LLM layer; graceful if it fails
-    finally { await endProgress(progress); }
+    try {
+      proposal = await proposeLoot(request);
+      await decorateProposal(proposal);          // optional LLM layer; graceful if it fails
+    } finally { await endProgress(progress); }
+  } else {
+    proposal = await proposeLoot(request);
   }
   await postReviewCard(proposal);
   const noun = isShop ? "shop" : "loot";
