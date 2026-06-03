@@ -162,6 +162,17 @@ PF2e system primitives to lean on: **Party actor** (membership/level), **compend
 - Reflavor/strictness-slider weighting formula.
 - Biome/faction starter vocabulary final list.
 
+## 18. Shop / Merchant generator — **budget-neutral**
+
+The shop is the one context where gp flows *out* (players buy) instead of loot being granted, which is exactly what defines it. It reuses the whole spine — item selector, theming, rune etching, the review card, the Materializer, the LLM sidecar — and diverges only where it must.
+
+- **Budget-neutral (the keystone decision).** Stocking a shop **never touches the WealthLedger**. A shop is a curated, themed place for the party to spend wealth they already have (buying = converting gp to gear, the PF2e default). The Materializer skips its ledger write for any proposal carrying `.shop`, and the review card's remove/swap don't move gp to a coin bucket. The Auditor therefore stays truthful: a PC who buys gear isn't "richer," their wealth just changed form.
+- **Sizing = shop tier**, not a budget slice. `peddler → stall → shop → emporium` each map to an item-count band, a level reach above the party (`maxOffset`), a core-vs-unusual lean added to the shopping-access baseline (§8), a count of bespoke **signature** items, and a consumable share. The GM may override the item count. (`scripts/loot/shop.js: SHOP_TIERS`.)
+- **Selection is flat**, not the priority cascade. No fundamentals/drift PC-targeting — a shop serves everyone. Stock is themed by the scene tags (§7), priced from the compendium, and a share of weapon/armor slots are **etched runed bases** (§9) so a shop can sell a "+1 striking" sword, not just bare steel.
+- **Materializes as a PF2e Merchant actor** — a Loot actor with `system.lootSheetType = "Merchant"`, landing in a **Shops** folder. Created **GM-only** so an upcoming shop isn't spoiled the moment it's stocked; the GM reveals it (grants player access / shows the sheet) when the party arrives, then players buy at list and sell back at the PF2e 50%. A **chat catalog** is the alternate sink. The engine writes the same real-UUID item data as any other sink — no fake items.
+- **LLM layer (opt-in, same §14 contract — flavor only, fails closed).** One batched `/shop` call returns a **shopkeeper persona** (name, sign, greeting, bio → written to the actor's description) **and** per-item provenance. **Signature stock** is authored through the existing `/workshop` path (reusing all its sanitization/pricing), idempotently, so a shop carries 1–2 bespoke items it's "known for." Code always decides the stock, prices, and legality; the model only dresses it. Any failure leaves the shop fully usable with plain rules-text.
+- **Entry points:** the **gem/wand/hammer**-style scene-control **shop button**, `Alt+S`, or `api.shop.proposeShop(req)` / `api.loot.shopRequest(opts)`.
+
 ---
 
 ## Sources

@@ -25,6 +25,13 @@ export function flavorEnabled() {
  * per item). `force` re-flavors picks that already have text.
  */
 export async function decorateProposal(proposal, { force = false } = {}) {
+  // Shops have their own enrichment (shopkeeper persona + signature stock +
+  // per-item provenance, DESIGN §18) with their own gating; delegate to it so
+  // every existing call site (dialog, reroll, reflavor) works unchanged.
+  if (proposal?.shop) {
+    const { decorateShop } = await import("./shop.js");
+    return decorateShop(proposal, { force });
+  }
   if (!proposal || !flavorEnabled()) return proposal;
 
   // Collect the picks needing flavor, each tagged with a stable batch id.

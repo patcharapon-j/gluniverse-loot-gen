@@ -192,3 +192,33 @@ curl -s -X POST localhost:7878/workshop \
 ```
 
 You should get `{"items":[{"name":"…","type":"equipment","level":5,"price":…,…}]}`.
+
+## The Shop generator (`/shop`)
+
+`/shop` dresses a **budget-neutral shop** (DESIGN §18) in one spawn. The module
+has already chosen and priced the stock; this endpoint returns a **shopkeeper
+persona** plus **per-item provenance** — cosmetic only, exactly like `/flavor`.
+The request carries `tier`, `label`, `level`, theme `tags`, optional `campaign` /
+`notes` / `party`, and an `items` array (`id`, `name`, `type`, `level`, `rarity`).
+The response is:
+
+```json
+{ "keeper": { "name": "…", "shop": "…", "greeting": "…", "bio": "…" },
+  "items":  { "<id>": { "flavor": "…", "provenance": "…", "name": "…?" } } }
+```
+
+The shopkeeper bio is written to the Merchant actor's description; per-item
+provenance rides onto each item like loot flavor. **Signature stock** (the 1–2
+bespoke items a shop is "known for") is authored separately through `/workshop`,
+so all of its sanitization/pricing is reused. Same security posture (auth gate,
+no shell, timeout, caps), same graceful fallback — any failure leaves the shop
+fully usable with plain rules-text.
+
+```bash
+curl -s -X POST localhost:7878/shop \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"tier":"shop","label":"Frontier outfitter","level":4,
+       "tags":{"biomes":["arctic"],"factions":["merchantHouse"]},
+       "items":[{"id":"s0","name":"Longsword","type":"weapon","level":0,"rarity":"common"},
+                {"id":"s1","name":"Lesser Healing Potion","type":"consumable","level":1,"rarity":"common"}]}'
+```

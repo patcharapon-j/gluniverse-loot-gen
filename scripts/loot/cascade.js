@@ -32,6 +32,13 @@ const RUNED_GEAR_CHANCE = 0.6;   // share of permanent picks that etch a base we
 
 /** Build a full loot proposal for a request. Async (queries compendia). */
 export async function proposeLoot(request) {
+  // Shops are budget-neutral and stock a Merchant; they reuse the proposal shape
+  // and review card but not the priority cascade (DESIGN §18). Delegated lazily
+  // so the review card's reroll path works without any special-casing.
+  if (request?.meta?.shop) {
+    const { proposeShop } = await import("./shop.js");
+    return proposeShop(request);
+  }
   if (request?.meta?.single) return proposeSingle(request);
 
   const index = await getItemIndex();
