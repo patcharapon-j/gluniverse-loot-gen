@@ -9,11 +9,12 @@
  * tier for quests, room count for dungeons).
  */
 
-import { CONTEXT, THREAT, CACHE_TIER, QUEST_TIER } from "../const.js";
+import { CONTEXT, THREAT, CACHE_TIER, QUEST_TIER, SHOP_TIER } from "../const.js";
 import { BIOMES, FACTIONS } from "../loot/vocab.js";
 import { buildRequest } from "../loot/adapters.js";
 import { proposeLoot } from "../loot/cascade.js";
 import { decorateProposal, flavorEnabled } from "../loot/decorator.js";
+import { workshopEnabled } from "../loot/workshop.js";
 import { postReviewCard } from "./review-card.js";
 import { beginProgress, endProgress } from "./progress.js";
 
@@ -60,6 +61,7 @@ function buildForm(presetContext) {
   const threat = sel("threat", ["auto", ...Object.values(THREAT)], "auto", capitalize);
   const cacheTier = sel("cacheTier", Object.values(CACHE_TIER), "standard", capitalize);
   const questTier = sel("questTier", Object.values(QUEST_TIER), "standard", capitalize);
+  const shopTier = sel("shopTier", Object.values(SHOP_TIER), SHOP_TIER.SHOP, capitalize);
   const kind = sel("kind", ["any", "permanent", "consumable"], "any", capitalize);
   const biome = sel("biome", ["", ...Object.keys(BIOMES)], "", k => k ? localize(BIOMES[k]) : "— none —");
   const faction = sel("faction", ["", ...Object.keys(FACTIONS)], "", k => k ? localize(FACTIONS[k]) : "— none —");
@@ -71,13 +73,14 @@ function buildForm(presetContext) {
     <div class="gllg-field" data-for="combat"><label>Threat <span class="gllg-dim">(auto reads selected tokens)</span></label>${threat}</div>
     <div class="gllg-field" data-for="exploration dungeon"><label>Cache tier</label>${cacheTier}</div>
     <div class="gllg-field" data-for="quest"><label>Reward tier</label>${questTier}</div>
+    <div class="gllg-field" data-for="shop"><label>Shop tier <span class="gllg-dim">(peddler → emporium = size &amp; reach)</span></label>${shopTier}</div>
     <div class="gllg-field" data-for="dungeon"><label>Rooms</label><input type="number" name="rooms" value="5" min="1" max="20"></div>
-    <div class="gllg-field" data-for="${BUDGET}"><label>Number of items <span class="gllg-dim">(blank = auto by budget)</span></label><input type="number" name="items" min="1" max="30" placeholder="auto"></div>
+    <div class="gllg-field" data-for="${BUDGET} shop"><label>Number of items <span class="gllg-dim">(blank = auto by ${"tier/budget"})</span></label><input type="number" name="items" min="1" max="40" placeholder="auto"></div>
     <div class="gllg-field" data-for="single"><label>Item kind</label>${kind}</div>
     <div class="gllg-field" data-for="single"><label>Item level <span class="gllg-dim">(blank = party level)</span></label><input type="number" name="itemLevel" min="0" max="25" placeholder="party level"></div>
     <div class="gllg-field" data-for="all"><label>Biome</label>${biome}</div>
     <div class="gllg-field" data-for="all"><label>Faction</label>${faction}</div>
-    <div class="gllg-field" data-for="all"><label>Additional context <span class="gllg-dim">(optional — this generation only, fed to the LLM)</span></label><textarea name="extraContext" rows="2" placeholder="e.g. recovered from the drowned shrine of Gozreh, after the storm"></textarea></div>
+    <div class="gllg-field" data-for="all"><label>Additional context / shop concept <span class="gllg-dim">(optional — fed to the LLM; for shops it stocks to match)</span></label><textarea name="extraContext" rows="2" placeholder="loot: 'recovered from the drowned shrine of Gozreh' · shop: 'black-market potion dealer in the sewers — poisons & illicit elixirs'"></textarea></div>
     ${llmToggle()}
     <div class="gllg-row">
       <div class="gllg-field" data-for="all"><label>Party level <span class="gllg-dim">(blank = auto)</span></label><input type="number" name="level" min="1" max="20" placeholder="auto"></div>
@@ -113,6 +116,7 @@ function readForm(form) {
     tier,
     threat: get("threat") || "auto",
     rooms: Number(get("rooms")) || 5,
+    shopTier: get("shopTier") || "shop",
     items: get("items"),       // strings — empty means "auto"
     kind: get("kind") || "any",
     itemLevel: get("itemLevel"),
@@ -148,7 +152,12 @@ async function runGeneration(r) {
   if (r.biome) opts.tags.biomes = [r.biome];
   if (r.faction) opts.tags.factions = [r.faction]; // applies in every context via the tag merge
 
-  if (r.context === CONTEXT.SINGLE) {
+  if (r.context === CONTEXT.SHOP) {
+    opts.tier = r.shopTier || "shop";
+    opts.useLlm = !!r.useLlm;                 // rides in meta → drives keeper + signatures
+    const n = parseInt(r.items, 10);
+    if (Number.isFinite(n) && n > 0) opts.maxItems = Math.min(40, n);
+  } else if (r.context === CONTEXT.SINGLE) {
     opts.kind = r.kind || "any";
     const il = parseInt(r.itemLevel, 10);
     if (Number.isFinite(il)) opts.itemLevel = Math.min(25, Math.max(0, il));
@@ -175,22 +184,41 @@ async function runGeneration(r) {
   const note = String(r.extraContext ?? "").trim();
   if (note) request.meta.extraContext = note.slice(0, 600);
 
-  if (!request.budgetGp && r.context !== CONTEXT.SINGLE) {
+  // Shops are budget-neutral, so a 0 budget is expected there — only warn for
+  // the budget-driven contexts.
+  if (!request.budgetGp && r.context !== CONTEXT.SINGLE && r.context !== CONTEXT.SHOP) {
     ui.notifications?.warn("GLLG: computed budget is 0 — check party level and (for combat) your token selection.");
   }
 
-  const proposal = await proposeLoot(request);
-  // LLM flavor can take a few seconds — show a working card while it runs. Only
-  // when the GM kept the toggle on AND a sidecar is configured (the cascade
-  // itself is instant); unchecking it gives a quick, LLM-free roll.
-  const useLlm = !!r.useLlm && flavorEnabled();
+  const isShop = r.context === CONTEXT.SHOP;
+  const useLlm = !!r.useLlm && (flavorEnabled() || (isShop && workshopEnabled()));
+
+  // The curator/buyer (DESIGN §18) reads meta.useLlm to decide whether to turn
+  // the context note into a selection profile. Set it for every context (the
+  // shop adapter also sets it; this keeps loot consistent).
+  request.meta.useLlm = useLlm;
+
+  // LLM enrichment can take a few seconds — show a working card while it runs.
+  // For shops the LLM also drives the STOCK itself (the buyer profile, DESIGN
+  // §18), which happens inside proposeLoot, so the progress card must wrap both
+  // the proposal and the decoration when the LLM is in play.
+  const hasBrief = !!String(r.extraContext ?? "").trim();
+  let proposal;
   if (useLlm) {
-    const progress = await beginProgress({ title: "Adding LLM flavor…", detail: proposal.label || "Loot proposal" });
-    try { await decorateProposal(proposal); }   // optional LLM flavor; graceful if it fails
-    finally { await endProgress(progress); }
+    const progress = await beginProgress({
+      title: isShop ? "Stocking the shop…" : (hasBrief ? "Curating & flavoring loot…" : "Adding LLM flavor…"),
+      detail: r.context === CONTEXT.SHOP ? "Shop proposal" : "Loot proposal"
+    });
+    try {
+      proposal = await proposeLoot(request);
+      await decorateProposal(proposal);          // optional LLM layer; graceful if it fails
+    } finally { await endProgress(progress); }
+  } else {
+    proposal = await proposeLoot(request);
   }
   await postReviewCard(proposal);
-  ui.notifications?.info(`GLLG: loot proposal posted to chat (${proposal.itemCount} items, ${Math.round(proposal.totalGp)} gp).`);
+  const noun = isShop ? "shop" : "loot";
+  ui.notifications?.info(`GLLG: ${noun} proposal posted to chat (${proposal.itemCount} items, ${Math.round(proposal.totalGp)} gp).`);
 }
 
 /* -------------------------------- helpers -------------------------------- */

@@ -73,8 +73,10 @@
   "GLLG.controls.workshop": "Loot Workshop",
   "GLLG.keybindings.workshop": "Open Loot Workshop",
   "GLLG.controls.generateLoot": "Generate Loot",
+  "GLLG.controls.shop": "Stock a Shop",
   "GLLG.keybindings.toggleAuditor": "Toggle Loot Auditor",
   "GLLG.keybindings.generateLoot": "Generate Loot",
+  "GLLG.keybindings.shop": "Stock a Shop (Merchant)",
 
   "GLLG.biome.arctic": "Arctic",
   "GLLG.biome.coast": "Coast",

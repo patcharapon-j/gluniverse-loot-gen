@@ -48,13 +48,18 @@ export async function materialize(proposal) {
       created.push({ type: "chat", name: work.label, uuid: msg?.uuid });
     } else if (target === TARGET.DIRECT) {
       await directToSheets(work, recipient, created);
+    } else if (target === TARGET.MERCHANT) {
+      const actor = await makeMerchantActor(work, proposal);
+      if (actor) created.push({ type: "merchant", name: actor.name, uuid: actor.uuid });
     } else {
       const actor = await makeLootActor(work, proposal);
       if (actor) created.push({ type: "loot-actor", name: actor.name, uuid: actor.uuid });
     }
   }
 
-  await recordToLedger(proposal, recipient?.id ?? null);
+  // Shops are budget-neutral (DESIGN §18): the party spends their own coin, so
+  // stocking one never touches the wealth ledger. Everything else records.
+  if (!proposal.shop) await recordToLedger(proposal, recipient?.id ?? null);
   return { ok: true, created };
 }
 
@@ -69,15 +74,16 @@ function resolveRecipient(proposal) {
 /* ------------------------------ loot actor ------------------------------ */
 
 const LOOT_FOLDER_NAME = "Loot Gen";
+const SHOP_FOLDER_NAME = "Shops";
 
-/** Get (or lazily create) the "Loot Gen" Actor folder so chests don't litter root. */
-async function lootFolder() {
+/** Get (or lazily create) a named Actor folder so generated actors don't litter root. */
+async function getActorFolder(name, color = "#7a5cff") {
   try {
-    const existing = game.folders?.find(f => f.type === "Actor" && f.name === LOOT_FOLDER_NAME);
+    const existing = game.folders?.find(f => f.type === "Actor" && f.name === name);
     if (existing) return existing;
-    return await Folder.create({ name: LOOT_FOLDER_NAME, type: "Actor", color: "#7a5cff" });
+    return await Folder.create({ name, type: "Actor", color });
   } catch (err) {
-    console.warn(`${MODULE_ID} | could not get/create the "${LOOT_FOLDER_NAME}" folder; placing at root`, err);
+    console.warn(`${MODULE_ID} | could not get/create the "${name}" folder; placing at root`, err);
     return null;
   }
 }
@@ -85,7 +91,7 @@ async function lootFolder() {
 async function makeLootActor(parcel, proposal) {
   let actor;
   try {
-    const folder = await lootFolder();
+    const folder = await getActorFolder(LOOT_FOLDER_NAME);
     actor = await Actor.create({
       name: parcel.label || proposal.label || "Loot",
       type: "loot",
@@ -114,6 +120,74 @@ async function makeLootActor(parcel, proposal) {
   if (parcel.currencyGp > 0) await addCoins(actor, parcel.currencyGp);
 
   return actor;
+}
+
+/* ------------------------------ merchant (shop) ------------------------------ */
+
+/**
+ * Materialize a shop parcel as a buyable PF2e Merchant actor (DESIGN §18): a
+ * Loot actor with `system.lootSheetType = "Merchant"`, default-Observer so the
+ * party can browse and purchase (and sell back at the PF2e 50%). Stock is the
+ * same hydrated, real-UUID item data as any other sink — no fake items. The
+ * shopkeeper persona (when the LLM authored one) becomes the actor's bio. No
+ * coins and no ledger write — a shop is budget-neutral.
+ */
+async function makeMerchantActor(parcel, proposal) {
+  const keeper = proposal.shop?.keeper ?? null;
+  const name = keeper?.shop || parcel.label || proposal.label || "Shop";
+
+  // Created GM-only by default (Foundry's default ownership) so an upcoming shop
+  // isn't spoiled the instant it's stocked. The GM grants players access — or
+  // just shows the sheet — when the party actually arrives to browse and buy.
+  let actor;
+  try {
+    const folder = await getActorFolder(SHOP_FOLDER_NAME, "#caa24a");
+    actor = await Actor.create({
+      name,
+      type: "loot",
+      img: "icons/svg/coins.svg",
+      system: { lootSheetType: "Merchant" },
+      folder: folder?.id ?? null,
+      flags: { [MODULE_ID]: { proposalId: proposal.id, context: proposal.context, shop: true, keeper } }
+    });
+  } catch (err) {
+    console.error(`${MODULE_ID} | failed to create merchant actor`, err);
+    ui.notifications?.error("GLLG: could not create the shop actor (see console).");
+    return null;
+  }
+
+  if (keeper) await applyKeeperBio(actor, keeper);
+
+  const itemData = [];
+  for (const pick of parcel.items ?? []) {
+    const data = await hydratePick(pick);
+    if (data) itemData.push(data);
+  }
+  if (itemData.length) {
+    try { await actor.createEmbeddedDocuments("Item", itemData); }
+    catch (err) { console.error(`${MODULE_ID} | failed to stock the shop`, err); }
+  }
+  return actor;
+}
+
+/** Write the shopkeeper persona into the merchant's description (best-effort). */
+async function applyKeeperBio(actor, keeper) {
+  const lines = [];
+  if (keeper.name || keeper.shop) {
+    const who = [keeper.name, keeper.shop ? `— ${keeper.shop}` : ""].filter(Boolean).join(" ");
+    lines.push(`<p><strong>${escapeHtml(who)}</strong></p>`);
+  }
+  if (keeper.greeting) lines.push(`<p><em>“${escapeHtml(keeper.greeting)}”</em></p>`);
+  if (keeper.bio) lines.push(`<p>${escapeHtml(keeper.bio)}</p>`);
+  if (!lines.length) return;
+  const html = lines.join("");
+
+  // The PF2e loot actor's description has shifted between a bare string and a
+  // { value } object across versions — match whatever shape the live actor has.
+  const cur = actor.system?.details?.description;
+  const path = (cur && typeof cur === "object") ? "system.details.description.value" : "system.details.description";
+  try { await actor.update({ [path]: html }); }
+  catch (err) { console.warn(`${MODULE_ID} | could not write shopkeeper bio`, err); }
 }
 
 /** Add gp to an actor, tolerating PF2e API differences across versions. */
@@ -231,10 +305,15 @@ async function handOutToChat(parcel, proposal) {
     return `<li>${label} <span class="gllg-gp">${fmtGp(p.gp)} gp</span></li>`;
   }).join("");
   const coins = parcel.currencyGp > 0 ? `<p class="gllg-coins">+ ${fmtGp(parcel.currencyGp)} gp coins</p>` : "";
+  const shop = !!proposal.shop;
+  const keeper = shop ? proposal.shop?.keeper : null;
+  const header = keeper?.shop || parcel.label || proposal.label || (shop ? "Catalog" : "Reward");
+  const greeting = keeper?.greeting ? `<p class="gllg-hint"><em>“${escapeHtml(keeper.greeting)}”</em></p>` : "";
+  const hint = shop ? "Prices as listed — buy at list, sell at half." : "Drag items onto a sheet to assign.";
   const content = `<div class="gllg-handout">
-    <h3>${escapeHtml(parcel.label || proposal.label || "Reward")}</h3>
+    <h3>${escapeHtml(header)}</h3>${greeting}
     <ul>${lines}</ul>${coins}
-    <p class="gllg-hint">Drag items onto a sheet to assign.</p>
+    <p class="gllg-hint">${hint}</p>
   </div>`;
   try {
     return await ChatMessage.create({ content, whisper: ChatMessage.getWhisperRecipients?.("GM") ?? [] });

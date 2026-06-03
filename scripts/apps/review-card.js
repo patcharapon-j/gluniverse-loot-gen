@@ -20,8 +20,12 @@ import { beginProgress, endProgress } from "./progress.js";
 const TARGET_LABELS = {
   [TARGET.LOOT_ACTOR]: "Loot actor (chest)",
   [TARGET.CHAT_CARD]: "Chat hand-out",
-  [TARGET.DIRECT]: "Direct to PC sheets"
+  [TARGET.DIRECT]: "Direct to PC sheets",
+  [TARGET.MERCHANT]: "Merchant shop (buyable)"
 };
+
+/** Destinations that make sense for a shop (DESIGN §18) — buyable actor or catalog. */
+const SHOP_TARGETS = [TARGET.MERCHANT, TARGET.CHAT_CARD];
 
 const PERMANENT_TYPES = new Set(["weapon", "armor", "shield", "equipment"]);
 
@@ -142,7 +146,9 @@ async function doRemove(message, proposal, btn) {
   const idx = parcel?.items.findIndex(i => i.uuid === btn.dataset.uuid) ?? -1;
   if (parcel && idx >= 0) {
     const [removed] = parcel.items.splice(idx, 1);
-    parcel.currencyGp = round2((parcel.currencyGp || 0) + removed.gp); // gp returns to coins
+    // Loot returns the pick's gp to the coin bucket; a shop has no coins — the
+    // item simply leaves the shelf (budget-neutral, DESIGN §18).
+    if (!proposal.shop) parcel.currencyGp = round2((parcel.currencyGp || 0) + removed.gp);
     recompute(parcel, proposal);
   }
   await message.update({ content: renderCard(proposal), flags: { [MODULE_ID]: { proposal } } });
@@ -153,11 +159,13 @@ async function doSwap(message, proposal, btn) {
   const idx = parcel?.items.findIndex(i => i.uuid === btn.dataset.uuid) ?? -1;
   if (!parcel || idx < 0) return;
   const old = parcel.items[idx];
-  const budget = old.gp + (parcel.currencyGp || 0);
+  // A shop is budget-neutral (no currency bucket) — any priced replacement is
+  // fine and the coins never change. Loot stays within the freed gp + coins.
+  const budget = proposal.shop ? Infinity : old.gp + (parcel.currencyGp || 0);
   const repl = await rerollOnePick(proposal, old, budget);
   if (!repl) return ui.notifications?.warn("GLLG: no affordable replacement found.");
   parcel.items[idx] = repl;
-  parcel.currencyGp = round2(budget - repl.gp);
+  if (!proposal.shop) parcel.currencyGp = round2(budget - repl.gp);
   recompute(parcel, proposal);
   await message.update({ content: renderCard(proposal), flags: { [MODULE_ID]: { proposal } } });
 }
@@ -196,6 +204,7 @@ function renderCard(p) {
       <div class="gllg-card-title"><i class="fa-solid fa-wand-sparkles"></i> ${esc(p.label || "Loot proposal")}</div>
       <div class="gllg-card-sub">${esc(p.context)} · Lv ${p.level} · ${p.itemCount} item(s) · ${gp(p.totalGp)} gp</div>
     </header>
+    ${renderKeeper(p)}
     ${reasons ? `<details class="gllg-why" open><summary>Why these picks</summary><ul>${reasons}</ul></details>` : ""}
     <div class="gllg-parcels">${parcels}</div>
     ${renderRouting(p)}
@@ -213,9 +222,23 @@ function renderCard(p) {
  * sheets, a recipient picker chooses who gets any pick the cascade did not
  * already assign to a specific PC (fundamentals/drift carry their own target).
  */
+/** Shopkeeper persona block (DESIGN §18) — shown when the LLM authored one. */
+function renderKeeper(p) {
+  const k = p.shop?.keeper;
+  if (!k) return "";
+  const who = [esc(k.name), k.shop ? `<span class="gllg-keeper-shop">— ${esc(k.shop)}</span>` : ""].filter(Boolean).join(" ");
+  const greet = k.greeting ? `<div class="gllg-keeper-greet"><i class="fa-solid fa-quote-left"></i> ${esc(k.greeting)}</div>` : "";
+  const bio = k.bio ? `<div class="gllg-keeper-bio">${esc(k.bio)}</div>` : "";
+  return `<div class="gllg-keeper"><i class="fa-solid fa-user-tie"></i> <strong>${who}</strong>${greet}${bio}</div>`;
+}
+
 function renderRouting(p) {
-  const target = p.target ?? TARGET.LOOT_ACTOR;
-  const opts = Object.entries(TARGET_LABELS).map(([v, label]) =>
+  const target = p.target ?? (p.shop ? TARGET.MERCHANT : TARGET.LOOT_ACTOR);
+  // Shops only offer sensible sinks (buyable Merchant or a chat catalog).
+  const entries = p.shop
+    ? SHOP_TARGETS.map(v => [v, TARGET_LABELS[v]])
+    : Object.entries(TARGET_LABELS).filter(([v]) => v !== TARGET.MERCHANT);
+  const opts = entries.map(([v, label]) =>
     `<option value="${esc(v)}" ${v === target ? "selected" : ""}>${esc(label)}</option>`).join("");
 
   let recipient = "";

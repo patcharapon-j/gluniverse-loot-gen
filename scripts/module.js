@@ -1,14 +1,15 @@
 /** GLUniverse — Loot Generator : module entry point. */
 
-import { MODULE_ID, HOOKS } from "./const.js";
+import { MODULE_ID, HOOKS, CONTEXT } from "./const.js";
 import { registerSettings } from "./settings.js";
 import { AuditorDashboard } from "./apps/auditor.js";
 import { WealthLedger } from "./auditor/ledger.js";
 import { buildReport } from "./auditor/health-check.js";
 import {
-  buildRequest, combatRequest, explorationRequest, dungeonRequest, questRequest
+  buildRequest, combatRequest, explorationRequest, dungeonRequest, questRequest, shopRequest
 } from "./loot/adapters.js";
 import { proposeLoot } from "./loot/cascade.js";
+import { proposeShop } from "./loot/shop.js";
 import { materialize } from "./loot/materializer.js";
 import { decorateProposal, flavorEnabled } from "./loot/decorator.js";
 import { clearItemIndex } from "./loot/item-selector.js";
@@ -25,11 +26,13 @@ Hooks.once("init", () => {
   if (mod) mod.api = {
     AuditorDashboard, WealthLedger, buildReport, HOOKS,
     // Loot model (build #2) — request builders.
-    loot: { buildRequest, combatRequest, explorationRequest, dungeonRequest, questRequest },
+    loot: { buildRequest, combatRequest, explorationRequest, dungeonRequest, questRequest, shopRequest },
     // Generation pipeline (build #3+) — cascade → decorate → review card → materialize.
     generate: { openGenerateDialog, proposeLoot, decorateProposal, flavorEnabled, postReviewCard, materialize, clearItemIndex },
     // Loot Workshop (/grill-me) — LLM-authored custom loot.
-    workshop: { openWorkshopDialog, runWorkshop, workshopEnabled }
+    workshop: { openWorkshopDialog, runWorkshop, workshopEnabled },
+    // Shop generator (DESIGN §18) — budget-neutral buyable Merchant actors.
+    shop: { proposeShop, openShopDialog: () => openGenerateDialog(CONTEXT.SHOP) }
   };
 });
 
@@ -90,6 +93,13 @@ Hooks.on("getSceneControlButtons", controls => {
     button: true,
     onChange: () => openWorkshopDialog()
   };
+  group.tools["gllg-shop"] = {
+    name: "gllg-shop",
+    title: "GLLG.controls.shop",
+    icon: "fa-solid fa-shop",
+    button: true,
+    onChange: () => openGenerateDialog(CONTEXT.SHOP)
+  };
 });
 
 function registerKeybindings() {
@@ -109,6 +119,12 @@ function registerKeybindings() {
     name: "GLLG.keybindings.workshop",
     editable: [{ key: "KeyW", modifiers: ["Alt"] }],
     onDown: () => { if (game.user?.isGM) openWorkshopDialog(); return true; },
+    restricted: true
+  });
+  game.keybindings.register(MODULE_ID, "shop", {
+    name: "GLLG.keybindings.shop",
+    editable: [{ key: "KeyS", modifiers: ["Alt"] }],
+    onDown: () => { if (game.user?.isGM) openGenerateDialog(CONTEXT.SHOP); return true; },
     restricted: true
   });
 }

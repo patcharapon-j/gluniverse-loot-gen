@@ -46,20 +46,33 @@ export const CORE_RATIO = { free: 0.5, limited: 0.75, none: 1.0 };
 export const PARTY_LEDGER_KEY = "party";
 
 /** Loot entry-point contexts (DESIGN §5). Each has a budget + tag adapter.
- *  SINGLE is an ad-hoc mode: one item at a chosen level/theme, not budget-driven. */
+ *  SINGLE is an ad-hoc mode: one item at a chosen level/theme, not budget-driven.
+ *  SHOP is a budget-NEUTRAL mode (DESIGN §18): it stocks a buyable Merchant actor
+ *  sized by shop tier, never touching the WealthLedger (players spend their own gp). */
 export const CONTEXT = {
   COMBAT: "combat",
   EXPLORATION: "exploration",
   DUNGEON: "dungeon",
   QUEST: "quest",
-  SINGLE: "single"
+  SINGLE: "single",
+  SHOP: "shop"
 };
 
 /** Where a generated find ultimately lands (DESIGN §10). */
 export const TARGET = {
-  LOOT_ACTOR: "loot-actor", // a chest/hoard actor — preserves discovery
-  CHAT_CARD: "chat-card",   // review + divvy
-  DIRECT: "direct"          // straight to a sheet (heirloom awakening, some quest rewards)
+  LOOT_ACTOR: "loot-actor",   // a chest/hoard actor — preserves discovery
+  CHAT_CARD: "chat-card",     // review + divvy
+  DIRECT: "direct",           // straight to a sheet (heirloom awakening, some quest rewards)
+  MERCHANT: "merchant-actor"  // a buyable PF2e Merchant actor (DESIGN §18 — shops)
+};
+
+/** Shop tiers (DESIGN §18) — how big/deep a stocked shop is. Each maps to an
+ *  item-count band + level reach + core/unusual lean (see scripts/loot/shop.js). */
+export const SHOP_TIER = {
+  PEDDLER: "peddler",
+  STALL: "stall",
+  SHOP: "shop",
+  EMPORIUM: "emporium"
 };
 
 /** Encounter threat bands (drive the combat budget slice). */

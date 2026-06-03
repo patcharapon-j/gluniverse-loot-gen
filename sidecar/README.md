@@ -192,3 +192,88 @@ curl -s -X POST localhost:7878/workshop \
 ```
 
 You should get `{"items":[{"name":"…","type":"equipment","level":5,"price":…,…}]}`.
+
+## The Shop generator (`/shop`)
+
+`/shop` dresses a **budget-neutral shop** (DESIGN §18) in one spawn. The module
+has already chosen and priced the stock; this endpoint returns a **shopkeeper
+persona** plus **per-item provenance** — cosmetic only, exactly like `/flavor`.
+The request carries `tier`, `label`, `level`, theme `tags`, optional `campaign` /
+`notes` / `party`, and an `items` array (`id`, `name`, `type`, `level`, `rarity`).
+The response is:
+
+```json
+{ "keeper": { "name": "…", "shop": "…", "greeting": "…", "bio": "…" },
+  "items":  { "<id>": { "flavor": "…", "provenance": "…", "name": "…?" } } }
+```
+
+The shopkeeper bio is written to the Merchant actor's description; per-item
+provenance rides onto each item like loot flavor. **Signature stock** (the 1–2
+bespoke items a shop is "known for") is authored separately through `/workshop`,
+so all of its sanitization/pricing is reused. Same security posture (auth gate,
+no shell, timeout, caps), same graceful fallback — any failure leaves the shop
+fully usable with plain rules-text.
+
+### Concept-driven stock (`/shop-stock`)
+
+This is what lets a free-text concept actually drive **what** the shop sells. The
+module POSTs the GM's `brief` (plus `tier`, `level`, `maxLevel`, `theme`,
+`campaign`, `party`), and the model — acting as the shop's **buyer** — returns a
+**selection profile**, *not* items or prices:
+
+```json
+{ "count": 14,
+  "typeMix": { "consumable": 0.7, "equipment": 0.25, "weapon": 0.05 },
+  "traitWeights": { "poison": 3, "alchemical": 2, "illusion": 1.5 },
+  "rarityLean": "uncommon",
+  "wanted": ["antidote", "invisibility potion", "drow poison", "alchemist's fire"],
+  "exclude": ["holy", "armor"] }
+```
+
+The **module** then resolves this against its real compendium: each `wanted`
+name is fuzzy-matched to a real, priced item **at or below `maxLevel`** (unmatched
+or over-level names are dropped), and the remaining slots are filled by the
+engine's weighted selector steered by `typeMix`/`traitWeights`/`rarityLean`. So a
+*"black-market potion dealer"* yields a shelf of real PF2e poisons and illicit
+elixirs — correctly priced — rather than invented gear. Rarity may lean
+restricted; item **level stays tier-bounded**. Graceful: no sidecar / bad JSON →
+the module stocks by theme tags as before.
+
+```bash
+curl -s -X POST localhost:7878/shop-stock \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"brief":"black-market potion dealer in the sewers — poisons & illicit elixirs",
+       "tier":"shop","level":4,"maxLevel":6,"theme":"urban"}'
+```
+
+```bash
+curl -s -X POST localhost:7878/shop \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"tier":"shop","label":"Frontier outfitter","level":4,
+       "tags":{"biomes":["arctic"],"factions":["merchantHouse"]},
+       "items":[{"id":"s0","name":"Longsword","type":"weapon","level":0,"rarity":"common"},
+                {"id":"s1","name":"Lesser Healing Potion","type":"consumable","level":1,"rarity":"common"}]}'
+```
+
+### Concept-driven loot (`/loot-plan`)
+
+The **same buyer profile** also steers the regular loot cascade (Combat /
+Exploration / Dungeon / Quest / single item). When the GM writes a context note
+and the LLM is on, the module POSTs `brief` (plus `context`, `level`, `maxLevel`,
+`theme`, `campaign`, `party`) and the model — here the haul's **curator** —
+returns the identical selection-profile shape as `/shop-stock`:
+
+```bash
+curl -s -X POST localhost:7878/loot-plan \
+  -H 'content-type: application/json' -H 'x-gllg-secret: test' \
+  -d '{"brief":"water-themed gear recovered from the drowned shrine of Gozreh",
+       "context":"dungeon","level":5,"maxLevel":7,"theme":"aquatic"}'
+```
+
+The difference is purely scope on the **module** side: a loot profile only steers
+the *discretionary* layer — the `wanted` items (resolved to real, **budgeted**,
+level-bounded entries and bought after the math-critical phases) and the fun-layer
+trait/rarity weighting. The fundamental-gap and wealth-drift picks remain
+code-owned, so the wealth ledger is never skewed. Most found loot leans
+common/uncommon (a black market leans restricted). Graceful as ever: no sidecar /
+bad JSON → the cascade themes the haul exactly as before.

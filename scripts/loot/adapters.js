@@ -8,7 +8,7 @@
  * genuinely push-button, while still letting a caller override any field.
  */
 
-import { CONTEXT, TARGET } from "../const.js";
+import { CONTEXT, TARGET, SHOP_TIER } from "../const.js";
 import { makeRequest, makeTags, mergeTags } from "./request.js";
 import {
   combatBudgetGp, cacheBudgetGp, questBudgetGp, dungeonBudgetGp, splitDungeon
@@ -186,6 +186,33 @@ export function singleRequest(opts = {}) {
   });
 }
 
+/* -------------------------------- shop --------------------------------- */
+
+/**
+ * Shop (DESIGN §18): budget-NEUTRAL. Not a slice of the treasure budget — a
+ * curated, themed Merchant the party spends their own gp at. The cascade detects
+ * meta.shop and delegates to proposeShop, which sizes the stock by `tier`
+ * (peddler/stall/shop/emporium) and themes it from the scene tags. `useLlm` rides
+ * in meta so the shop decorator knows whether to author a shopkeeper + signatures.
+ */
+export function shopRequest(opts = {}) {
+  const { level, size } = partyContext(opts);
+  const tier = Object.values(SHOP_TIER).includes(opts.tier) ? opts.tier : SHOP_TIER.SHOP;
+  const tags = mergeTags(tagsFromScene(currentScene(opts), { level }), makeTags(opts.tags));
+
+  return makeRequest({
+    context: CONTEXT.SHOP,
+    partyLevel: level,
+    partySize: size,
+    budgetGp: 0,                                  // budget-neutral — never touches the ledger
+    tags,
+    target: opts.target ?? TARGET.MERCHANT,
+    label: opts.label ?? `${capitalize(tier)} (shop)`,
+    maxItems: Number.isFinite(opts.maxItems) && opts.maxItems > 0 ? Math.trunc(opts.maxItems) : null,
+    meta: { shop: true, shopTier: tier, useLlm: !!opts.useLlm }
+  });
+}
+
 /* ------------------------------ dispatch ------------------------------- */
 
 export const ADAPTERS = {
@@ -193,7 +220,8 @@ export const ADAPTERS = {
   [CONTEXT.EXPLORATION]: explorationRequest,
   [CONTEXT.DUNGEON]: dungeonRequest,
   [CONTEXT.QUEST]: questRequest,
-  [CONTEXT.SINGLE]: singleRequest
+  [CONTEXT.SINGLE]: singleRequest,
+  [CONTEXT.SHOP]: shopRequest
 };
 
 /** Build a LootRequest for any context by key. Throws on an unknown context. */

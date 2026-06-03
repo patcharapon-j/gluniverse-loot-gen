@@ -33,6 +33,11 @@ Then enable it in a world running the **Pathfinder 2e** system.
   gem button.
 - **Budget-aware generation** — four push-button contexts (Combat, Exploration cache,
   Dungeon, Quest reward) plus an ad-hoc **single item** mode. `Alt+G` or the wand button.
+  With the LLM on, a free-text **context note** ("water-themed gear from a drowned shrine")
+  becomes an LLM *curator* that steers **what** the haul contains — naming real, budgeted,
+  level-bounded items and weighting the discretionary "fun" layer by theme/rarity. The
+  math-critical fundamental-gap and wealth-drift picks stay code-owned, so the wealth
+  ledger is never skewed (the same engine that stocks shops, DESIGN §18).
 - **Prescriptive cascade** — spends the budget in order: fundamental gaps → wealth-drift
   correction → themed fun layer → currency, with a human-readable reason per pick.
 - **Theming** — auto-reads creature traits / scene tags, plus 12 biomes and 12 faction
@@ -60,6 +65,19 @@ Then enable it in a world running the **Pathfinder 2e** system.
 - **Loot Workshop** *(opt-in, needs the sidecar)* — describe loot in plain words and the
   `claude -p` sidecar **authors bespoke PF2e items** (type, traits, fair price, encoded
   dice/DCs), reviewed on the same card. `/grill-me`, `Alt+W`, or the hammer button.
+- **Shop generator** *(budget-neutral)* — stock a buyable **PF2e Merchant** actor sized by
+  **shop tier** (peddler → stall → shop → emporium = how many items and how high they reach),
+  themed by scene tags, with a share of weapon/armor etched as legal runed gear. Because a shop
+  is just a place to *spend* gp the party already has, stocking one **never touches the wealth
+  ledger** (the Auditor stays truthful). Lands in a **Shops** folder, created GM-only so it
+  doesn't spoil — reveal it when the party arrives; they buy at list and sell back at 50%. With
+  the LLM on, **describe the shop in plain words** ("black-market potion dealer in the sewers")
+  and an LLM *buyer* stocks it to match — curating real, correctly-priced compendium items
+  (poisons, illicit elixirs…) by type/trait/rarity, plus named pulls. It also adds a **named
+  shopkeeper** (voice, sign, and why the stock is here), per-item provenance, and 1–2 bespoke
+  **signature** items the shop is known for. Briefs can lean toward restricted (uncommon/rare)
+  goods, but item levels stay bounded to the tier. The **shop button**, `Alt+S`, or the Generate
+  dialog's **Shop** context.
 - **Loot from creatures** *(Workshop)* — **select one or more creature tokens** and the
   Workshop bases the loot **on / from** them: carried gear & keepsakes, or **harvested
   monster parts** (scales, fangs, glands, cores) — your pick per batch. Item level/count
@@ -87,6 +105,7 @@ Then enable it in a world running the **Pathfinder 2e** system.
 | # | Build | Status |
 |---|-------|--------|
 | 7 | Wishlist + teaser, boon-draft, salvage/crafting feed | ⏳ planned |
+| 8 | Shop generator (budget-neutral Merchant actors, tiered, LLM shopkeeper) | ✅ |
 
 **v2 — deferred:** full Automatic Bonus Progression mode, apex-item handling.
 
