@@ -61,6 +61,19 @@ export function registerSettings() {
     scope: "world", config: true, type: Boolean, default: true
   });
 
+  // --- D&D 5e (Plutonium) sourcing ---
+  reg(SETTINGS.dnd5eSourcePack, {
+    name: "GLLG.settings.dnd5eSourcePack.name",
+    hint: "GLLG.settings.dnd5eSourcePack.hint",
+    scope: "world", config: true, type: String, default: ""
+  });
+
+  reg(SETTINGS.dnd5eAutoImport, {
+    name: "GLLG.settings.dnd5eAutoImport.name",
+    hint: "GLLG.settings.dnd5eAutoImport.hint",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
   // --- LLM flavor sidecar (DESIGN §14) ---
   reg(SETTINGS.llmFlavor, {
     name: "GLLG.settings.llmFlavor.name",
@@ -132,10 +145,25 @@ export function registerSettings() {
  * input for a roomy <textarea> whenever the settings window renders. Idempotent:
  * skips inputs that are already textareas.
  */
+/** Settings only meaningful under a given system (hidden under the other). */
+const PF2E_ONLY = [SETTINGS.variantABP, SETTINGS.proficiencyWithoutLevel, SETTINGS.heirloomMode, SETTINGS.heirloomArmor, SETTINGS.etchRunes];
+const DND5E_ONLY = [SETTINGS.dnd5eSourcePack, SETTINGS.dnd5eAutoImport];
+
 function registerSettingsFormEnhancers() {
   Hooks.on("renderSettingsConfig", (_app, html) => {
     const root = html instanceof HTMLElement ? html : html?.[0];
     if (!root?.querySelector) return;
+
+    // Hide settings that don't apply to the active system, so the GM only sees
+    // the knobs that matter for their game.
+    const sys = game.system?.id;
+    const hide = sys === "dnd5e" ? PF2E_ONLY : sys === "pf2e" ? DND5E_ONLY : [];
+    for (const key of hide) {
+      const el = root.querySelector(`[name="${MODULE_ID}.${key}"]`);
+      const group = el?.closest(".form-group");
+      if (group) group.style.display = "none";
+    }
+
     const input = root.querySelector(`[name="${MODULE_ID}.${SETTINGS.campaignContext}"]`);
     if (!input || input.tagName === "TEXTAREA") return;
 

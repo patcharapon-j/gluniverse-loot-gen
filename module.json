@@ -1,7 +1,7 @@
 {
   "id": "gluniverse-loot-gen",
   "title": "GLUniverse — Loot Generator",
-  "description": "A premium, dynamic PF2e loot generator with a live gear health-check. Budget-aware, source-themed, treadmill-free loot — plus an auditor that reads your party's sheets and tells you who's ahead, behind, or missing fundamentals.",
+  "description": "A premium, dynamic loot generator with a live gear health-check, for Pathfinder 2e and D&D 5e (2024). Budget-aware, source-themed, treadmill-free loot — plus an auditor that reads your party's sheets and tells you who's ahead, behind, or missing key gear. On D&D 5e it sources from the Plutonium catalogue and follows the 2024 DMG treasure-hoard model.",
   "version": "1.5.0",
   "compatibility": {
     "minimum": "13",
@@ -19,6 +19,18 @@
         "id": "pf2e",
         "type": "system",
         "compatibility": {}
+      },
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {}
+      }
+    ],
+    "recommends": [
+      {
+        "id": "plutonium",
+        "type": "module",
+        "reason": "Imports the full D&D 5e (2024) catalogue — including all official magic items — used as the loot source on the dnd5e system."
       }
     ]
   },

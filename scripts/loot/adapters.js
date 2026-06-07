@@ -16,8 +16,13 @@ import {
 import {
   tagsFromTokens, levelsFromTokens, tagsFromScene, tagsFromQuest
 } from "./tags.js";
-import { estimateThreat } from "../pf2e/tables.js";
-import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import { getAdapter } from "../systems/registry.js";
+
+function estimateThreat(npcLevels, level, size) {
+  return getAdapter()?.estimateThreat(npcLevels, level, size) ?? "moderate";
+}
+function resolveParty() { return getAdapter()?.resolveParty() ?? { partyActor: null, members: [] }; }
+function actorLevel(a) { return getAdapter()?.actorLevel(a) ?? 1; }
 
 /** Best-guess party level/size from the resolved party (adapter default). */
 function partyContext(opts = {}) {

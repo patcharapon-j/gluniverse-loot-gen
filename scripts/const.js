@@ -26,6 +26,10 @@ export const SETTINGS = {
   heirloomArmor: "heirloomArmor",         // Boolean (world): also awaken armor fundamentals (else weapons only)
   etchRunes: "etchRunes",                 // Boolean (world): etch appropriate rune sets onto generated weapon/armor loot
 
+  // --- D&D 5e (Plutonium) sourcing ---
+  dnd5eSourcePack: "dnd5eSourcePack",     // String (world): preferred source compendium collection id (blank = auto, Plutonium-first)
+  dnd5eAutoImport: "dnd5eAutoImport",     // Boolean (world): let Plutonium auto-import catalogue content on demand when its API is available
+
   // --- LLM flavor sidecar (build #6, DESIGN §14) ---
   llmFlavor: "llmFlavor",                 // Boolean (world): request LLM provenance/flavor from the sidecar
   sidecarUrl: "sidecarUrl",               // String (world): base URL of the claude -p sidecar (same-origin path or full URL)

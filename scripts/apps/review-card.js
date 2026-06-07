@@ -14,8 +14,10 @@ import {
   getItemIndex, filterCandidates, weightFor, weightedPick
 } from "../loot/item-selector.js";
 import { decorateProposal, flavorEnabled } from "../loot/decorator.js";
-import { resolveParty } from "../pf2e/actor-reader.js";
+import { getAdapter } from "../systems/registry.js";
 import { beginProgress, endProgress } from "./progress.js";
+
+function resolveParty() { return getAdapter()?.resolveParty() ?? { partyActor: null, members: [] }; }
 
 const TARGET_LABELS = {
   [TARGET.LOOT_ACTOR]: "Loot actor (chest)",

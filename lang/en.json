@@ -5,11 +5,15 @@
   "GLLG.axis.resilient": "Resilient",
   "GLLG.axis.perception": "Perception",
   "GLLG.axis.skills": "Skills",
+  "GLLG.axis.attunement": "Attunement",
+  "GLLG.axis.magicItems": "Magic Items",
+  "GLLG.axis.rarity": "Top Rarity",
 
   "GLLG.audit.title": "Loot Auditor — Gear Health Check",
   "GLLG.audit.defaultPartyName": "The Party",
   "GLLG.audit.notPF2e": "The Loot Auditor requires the Pathfinder 2e system.",
-  "GLLG.audit.noParty": "No party found. Add characters to a Party actor, or assign characters to players.",
+  "GLLG.audit.noSystem": "The Loot Auditor has no adapter for the active game system (supported: Pathfinder 2e, D&D 5e 2024).",
+  "GLLG.audit.noParty": "No party found. Add characters to a Party/Group actor, or assign characters to players.",
   "GLLG.audit.avgLevel": "Avg Lv",
   "GLLG.audit.level": "Level",
   "GLLG.audit.refresh": "Re-audit",
@@ -48,6 +52,11 @@
 
   "GLLG.settings.etchRunes.name": "Etch runes onto weapon & armor loot",
   "GLLG.settings.etchRunes.hint": "When on, generated weapon and armor drops come pre-etched with an appropriate, legal, RAW-priced rune set (potency, striking/resilient, and eligible property runes) sized to the party's level and the find's theme. Eligibility follows each rune's Usage restriction (e.g. keen only on piercing/slashing melee, shadow only on light/medium armor), so no illegal combinations are produced. Off = only pre-made magic items drop.",
+
+  "GLLG.settings.dnd5eSourcePack.name": "Source Compendium (D&D 5e)",
+  "GLLG.settings.dnd5eSourcePack.hint": "Preferred compendium to draw loot from (its collection id, e.g. 'world.plutonium-items'). Leave blank to auto-detect, preferring Plutonium-imported packs and falling back to the dnd5e SRD. Install & import via the Plutonium module for the full 2024 magic-item catalogue.",
+  "GLLG.settings.dnd5eAutoImport.name": "Plutonium auto-import (D&D 5e)",
+  "GLLG.settings.dnd5eAutoImport.hint": "When on and Plutonium exposes an import API, the generator may ask Plutonium to import catalogue content on demand (e.g. an LLM-named item not yet in a compendium). Off = only index content you have already imported via Plutonium's UI.",
 
   "GLLG.settings.llmFlavor.name": "LLM Flavor & Provenance",
   "GLLG.settings.llmFlavor.hint": "When on, each generated hoard makes one call to the claude -p sidecar to add provenance flavor text to its items. Purely cosmetic — prices and rules never change. Any failure drops the loot with plain rules-text (never blocks generation). Requires the sidecar URL below.",

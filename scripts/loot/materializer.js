@@ -12,8 +12,10 @@
 
 import { MODULE_ID, TARGET, PARTY_LEDGER_KEY } from "../const.js";
 import { WealthLedger } from "../auditor/ledger.js";
-import { resolveParty } from "../pf2e/actor-reader.js";
+import { getAdapter } from "../systems/registry.js";
 import { iconNoteHtml } from "./icon-note.js";
+
+function adapter() { return getAdapter(); }
 
 /**
  * Realize a proposal. Returns { ok, created:[{type, name, uuid?}], reason? }.
@@ -67,7 +69,7 @@ export async function materialize(proposal) {
 function resolveRecipient(proposal) {
   const id = proposal.directActorId;
   let actor = id ? game.actors?.get(id) : null;
-  if (!actor) actor = resolveParty().members[0] ?? null;
+  if (!actor) actor = adapter()?.resolveParty().members[0] ?? null;
   return actor;
 }
 
@@ -94,8 +96,8 @@ async function makeLootActor(parcel, proposal) {
     const folder = await getActorFolder(LOOT_FOLDER_NAME);
     actor = await Actor.create({
       name: parcel.label || proposal.label || "Loot",
-      type: "loot",
-      img: "icons/containers/chest/chest-worn-oak-tan.webp",
+      type: adapter()?.lootActorType ?? "loot",
+      img: adapter()?.lootActorImg ?? "icons/containers/chest/chest-worn-oak-tan.webp",
       folder: folder?.id ?? null,
       flags: { [MODULE_ID]: { proposalId: proposal.id, context: proposal.context } }
     });
@@ -142,14 +144,12 @@ async function makeMerchantActor(parcel, proposal) {
   let actor;
   try {
     const folder = await getActorFolder(SHOP_FOLDER_NAME, "#caa24a");
-    actor = await Actor.create({
+    const merchantData = adapter()?.merchantActorData?.() ?? { type: "loot", img: "icons/svg/coins.svg", system: { lootSheetType: "Merchant" } };
+    actor = await Actor.create(foundry.utils.mergeObject({
       name,
-      type: "loot",
-      img: "icons/svg/coins.svg",
-      system: { lootSheetType: "Merchant" },
       folder: folder?.id ?? null,
       flags: { [MODULE_ID]: { proposalId: proposal.id, context: proposal.context, shop: true, keeper } }
-    });
+    }, merchantData));
   } catch (err) {
     console.error(`${MODULE_ID} | failed to create merchant actor`, err);
     ui.notifications?.error("GLLG: could not create the shop actor (see console).");
@@ -182,24 +182,23 @@ async function applyKeeperBio(actor, keeper) {
   if (!lines.length) return;
   const html = lines.join("");
 
-  // The PF2e loot actor's description has shifted between a bare string and a
-  // { value } object across versions — match whatever shape the live actor has.
-  const cur = actor.system?.details?.description;
-  const path = (cur && typeof cur === "object") ? "system.details.description.value" : "system.details.description";
+  // The shopkeeper bio lands on the system's merchant/NPC description field
+  // (PF2e: loot actor description; D&D 5e: NPC biography).
+  let path = adapter()?.merchantDescPath?.(actor);
+  if (!path) {
+    const cur = actor.system?.details?.description;
+    path = (cur && typeof cur === "object") ? "system.details.description.value" : "system.details.description";
+  }
   try { await actor.update({ [path]: html }); }
   catch (err) { console.warn(`${MODULE_ID} | could not write shopkeeper bio`, err); }
 }
 
-/** Add gp to an actor, tolerating PF2e API differences across versions. */
+/** Add gp to an actor, via the active system's coin API. */
 async function addCoins(actor, gp) {
   const whole = Math.max(0, Math.round(gp));
   if (!whole) return;
-  try {
-    if (typeof actor.inventory?.addCoins === "function") {
-      await actor.inventory.addCoins({ gp: whole });
-      return;
-    }
-  } catch (err) { console.warn(`${MODULE_ID} | addCoins failed, leaving coins note`, err); }
+  const a = adapter();
+  if (a?.addCoins) { await a.addCoins(actor, whole); return; }
   // Fallback: stash the intended amount in a flag so the GM can add it manually.
   try { await actor.setFlag(MODULE_ID, "pendingCoinsGp", whole); } catch { /* ignore */ }
 }
@@ -371,7 +370,7 @@ async function hydratePick(pick) {
     const doc = await safeFromUuid(pick?.uuid);
     if (!doc) return null;
     data = doc.toObject();
-    applyRunes(data, pick);     // etch the cascade's rune set onto a base weapon/armor
+    adapter()?.applyEnrichment?.(data, pick); // system enrichment (PF2e: etch runes; 5e: none)
     applyFlavor(data, pick);    // compendium-backed picks get their flavor folded in
     applyIconNote(data, pick);  // …and a GM-only icon-generation prompt
   }
@@ -395,39 +394,7 @@ function applyIconNote(data, pick) {
     hint: pick?.iconHint ?? ""
   });
   if (!note) return data;
-  const existing = foundry.utils.getProperty(data, "system.description.gm") ?? "";
-  foundry.utils.setProperty(data, "system.description.gm", existing ? `${existing}${note}` : note);
-  return data;
-}
-
-/**
- * Etch a cascade-built rune set (pick.runes) onto a hydrated base weapon/armor,
- * in place (DESIGN §9). Writes the modern numeric `system.runes` shape, falling
- * back to the legacy discrete rune fields for older PF2e builds. The PF2e system
- * derives the runed price and level from these, so we never touch price here —
- * the proposal already booked base + rune gp to the ledger. Never lowers an
- * existing rune (mundane bases start at 0, so this just sets them).
- */
-function applyRunes(data, pick) {
-  const r = pick?.runes;
-  if (!r || (data.type !== "weapon" && data.type !== "armor")) return data;
-  const isArmor = data.type === "armor";
-  const property = (Array.isArray(r.property) ? r.property : []).filter(Boolean).slice(0, 4);
-  const modern = data.system?.runes && typeof data.system.runes === "object";
-
-  if (modern) {
-    const runes = { ...data.system.runes };
-    runes.potency = Math.max(Number(runes.potency) || 0, Number(r.potency) || 0);
-    if (isArmor) runes.resilient = Math.max(Number(runes.resilient) || 0, Number(r.resilient) || 0);
-    else runes.striking = Math.max(Number(runes.striking) || 0, Number(r.striking) || 0);
-    runes.property = property;
-    foundry.utils.setProperty(data, "system.runes", runes);
-  } else {
-    foundry.utils.setProperty(data, "system.potencyRune.value", Number(r.potency) || 0);
-    if (isArmor) foundry.utils.setProperty(data, "system.resiliencyRune.value", RESILIENT_LEGACY[r.resilient] ?? null);
-    else foundry.utils.setProperty(data, "system.strikingRune.value", STRIKING_LEGACY[r.striking] ?? null);
-    property.forEach((slug, i) => foundry.utils.setProperty(data, `system.propertyRune${i + 1}.value`, slug));
-  }
+  adapter()?.applyGmNote?.(data, note);
   return data;
 }
 

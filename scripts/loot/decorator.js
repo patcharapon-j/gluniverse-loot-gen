@@ -11,6 +11,7 @@
 
 import { MODULE_ID, SETTINGS } from "../const.js";
 import { logLlmCall } from "./llm-log.js";
+import { getAdapter } from "../systems/registry.js";
 
 const REQUEST_TIMEOUT_MS = 60000; // client cap; the sidecar enforces its own, shorter
 
@@ -50,6 +51,7 @@ export async function decorateProposal(proposal, { force = false } = {}) {
     context: proposal.context,
     label: proposal.label,
     level: proposal.level,
+    system: getAdapter()?.sidecarSystem ?? "pf2e",
     campaign: String(safeSetting(SETTINGS.campaignContext, "") ?? "").trim(),
     notes: String(proposal.request?.meta?.extraContext ?? "").trim(),
     // Which Claude model the sidecar should use (blank → sidecar's own default).
