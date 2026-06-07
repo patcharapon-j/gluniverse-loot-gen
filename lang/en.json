@@ -60,8 +60,8 @@
   "GLLG.settings.dnd5eSourceMode.plutonium": "Plutonium only",
   "GLLG.settings.dnd5eSourceMode.internal": "Internal compendiums only (system/SRD)",
 
-  "GLLG.settings.dnd5eSourcePack.name": "Source Compendium (D&D 5e)",
-  "GLLG.settings.dnd5eSourcePack.hint": "Preferred compendium to draw loot from (its collection id, e.g. 'world.plutonium-items'). Leave blank to auto-detect, preferring Plutonium-imported packs and falling back to the dnd5e SRD. Install & import via the Plutonium module for the full 2024 magic-item catalogue.",
+  "GLLG.settings.dnd5eSourcePack.name": "Source Compendia (D&D 5e)",
+  "GLLG.settings.dnd5eSourcePack.hint": "Optional list of specific compendia to draw loot from — one OR MORE, comma-separated, matched against each pack's collection id or label (e.g. 'world.plutonium-items, world.my-homebrew-magic'). When set this RESTRICTS sourcing to just those packs (within whatever the source mode above allows). Leave blank to auto-detect, preferring Plutonium-imported packs and falling back to the dnd5e SRD. Install & import via the Plutonium module for the full 2024 magic-item catalogue.",
   "GLLG.settings.dnd5eSourceBooks.name": "Allowed sources (D&D 5e)",
   "GLLG.settings.dnd5eSourceBooks.hint": "Optional comma-separated allow-list of content sources to draw loot from, matched against each item's source (book code or homebrew name), e.g. 'PHB, DMG, XGE' or 'My Homebrew'. Homebrew names match by substring. Leave blank to use everything Plutonium has imported. This layers on top of the source mode above — it narrows WHICH books/homebrew within your imported content are eligible, so you can run pure-homebrew or core-plus-homebrew loot. Items with no source are excluded while a list is set.",
   "GLLG.settings.dnd5eAutoImport.name": "Plutonium auto-import (D&D 5e)",

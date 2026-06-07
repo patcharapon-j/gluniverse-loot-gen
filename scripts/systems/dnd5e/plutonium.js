@@ -94,14 +94,19 @@ export function sourcePacks() {
   if (mode === SOURCE_MODE.PLUTONIUM) itemPacks = itemPacks.filter(isPlutoniumPack);
   else if (mode === SOURCE_MODE.INTERNAL) itemPacks = itemPacks.filter(isInternalPack);
 
-  const chosen = String(safeSetting(SETTINGS.dnd5eSourcePack, "") ?? "").trim();
+  // Explicit pack picker — one OR MORE collection ids/names, comma-separated.
+  // When set it RESTRICTS the pool to the named packs (across whatever the mode
+  // left eligible); blank = auto-detect by the scoring below.
+  const chosen = parseList(safeSetting(SETTINGS.dnd5eSourcePack, ""));
+  if (chosen.length) itemPacks = itemPacks.filter(p => matchesChosen(p, chosen));
+
   const scored = [];
   for (const p of itemPacks) {
     const id = `${p.collection}`.toLowerCase();
     const label = `${p.metadata?.label ?? ""}`.toLowerCase();
     const pkg = p.metadata?.packageName ?? p.metadata?.package ?? "";
     let score = 0;
-    if (chosen && (p.collection === chosen || id.includes(chosen.toLowerCase()))) score += 100;
+    if (chosen.length && matchesChosen(p, chosen)) score += 100;
     if (pkg === PLUTONIUM_ID || hasPlutoniumFlag(p)) score += 50;
     if (/plutonium|5etools|5e-tools|5e\.tools/.test(id + " " + label)) score += 40;
     if (p.metadata?.packageType === "world") score += 20;
@@ -130,6 +135,18 @@ function isPlutoniumPack(pack) {
 function isInternalPack(pack) {
   const pkg = pack.metadata?.packageName ?? pack.metadata?.package ?? "";
   return pack.metadata?.packageType === "system" || pkg === "dnd5e";
+}
+
+/** Split a comma-separated setting into lowercased, trimmed, non-empty tokens. */
+function parseList(raw) {
+  return String(raw ?? "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+
+/** Does a pack match any of the GM's chosen tokens (by collection id or label)? */
+function matchesChosen(pack, tokens) {
+  const id = `${pack.collection}`.toLowerCase();
+  const label = `${pack.metadata?.label ?? ""}`.toLowerCase();
+  return tokens.some(t => id === t || id.includes(t) || label.includes(t));
 }
 
 /* ---------------------------- source allow-list ---------------------------- */
