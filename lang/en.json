@@ -13,6 +13,7 @@
   "GLLG.audit.defaultPartyName": "The Party",
   "GLLG.audit.notPF2e": "The Loot Auditor requires the Pathfinder 2e system.",
   "GLLG.audit.noSystem": "The Loot Auditor has no adapter for the active game system (supported: Pathfinder 2e, D&D 5e 2024).",
+  "GLLG.audit.plutoniumRequired": "Loot source is set to “Plutonium only”, but the Plutonium module isn't active. Enable Plutonium or change the D&D 5e loot source setting.",
   "GLLG.audit.noParty": "No party found. Add characters to a Party/Group actor, or assign characters to players.",
   "GLLG.audit.avgLevel": "Avg Lv",
   "GLLG.audit.level": "Level",
@@ -53,8 +54,16 @@
   "GLLG.settings.etchRunes.name": "Etch runes onto weapon & armor loot",
   "GLLG.settings.etchRunes.hint": "When on, generated weapon and armor drops come pre-etched with an appropriate, legal, RAW-priced rune set (potency, striking/resilient, and eligible property runes) sized to the party's level and the find's theme. Eligibility follows each rune's Usage restriction (e.g. keen only on piercing/slashing melee, shadow only on light/medium armor), so no illegal combinations are produced. Off = only pre-made magic items drop.",
 
+  "GLLG.settings.dnd5eSourceMode.name": "D&D 5e loot source",
+  "GLLG.settings.dnd5eSourceMode.hint": "Where the 5e generator draws items from. Auto: prefer Plutonium-imported content, then fall back to any world/SRD pack. Plutonium only: draw exclusively from Plutonium-sourced compendiums (use this to guarantee every find is a Plutonium item). Internal compendiums only: draw exclusively from the dnd5e system's own bundled (SRD) packs — never Plutonium or other modules, and never import on demand.",
+  "GLLG.settings.dnd5eSourceMode.auto": "Auto (Plutonium first, then SRD)",
+  "GLLG.settings.dnd5eSourceMode.plutonium": "Plutonium only",
+  "GLLG.settings.dnd5eSourceMode.internal": "Internal compendiums only (system/SRD)",
+
   "GLLG.settings.dnd5eSourcePack.name": "Source Compendium (D&D 5e)",
   "GLLG.settings.dnd5eSourcePack.hint": "Preferred compendium to draw loot from (its collection id, e.g. 'world.plutonium-items'). Leave blank to auto-detect, preferring Plutonium-imported packs and falling back to the dnd5e SRD. Install & import via the Plutonium module for the full 2024 magic-item catalogue.",
+  "GLLG.settings.dnd5eSourceBooks.name": "Allowed sources (D&D 5e)",
+  "GLLG.settings.dnd5eSourceBooks.hint": "Optional comma-separated allow-list of content sources to draw loot from, matched against each item's source (book code or homebrew name), e.g. 'PHB, DMG, XGE' or 'My Homebrew'. Homebrew names match by substring. Leave blank to use everything Plutonium has imported. This layers on top of the source mode above — it narrows WHICH books/homebrew within your imported content are eligible, so you can run pure-homebrew or core-plus-homebrew loot. Items with no source are excluded while a list is set.",
   "GLLG.settings.dnd5eAutoImport.name": "Plutonium auto-import (D&D 5e)",
   "GLLG.settings.dnd5eAutoImport.hint": "When on and Plutonium exposes an import API, the generator may ask Plutonium to import catalogue content on demand (e.g. an LLM-named item not yet in a compendium). Off = only index content you have already imported via Plutonium's UI.",
 

@@ -1,6 +1,6 @@
 /** Setting registration for GLUniverse — Loot Generator. */
 
-import { MODULE_ID, SETTINGS } from "./const.js";
+import { MODULE_ID, SETTINGS, SOURCE_MODE } from "./const.js";
 import { LlmLogViewer } from "./apps/llm-log.js";
 
 export function registerSettings() {
@@ -62,9 +62,26 @@ export function registerSettings() {
   });
 
   // --- D&D 5e (Plutonium) sourcing ---
+  reg(SETTINGS.dnd5eSourceMode, {
+    name: "GLLG.settings.dnd5eSourceMode.name",
+    hint: "GLLG.settings.dnd5eSourceMode.hint",
+    scope: "world", config: true, type: String, default: SOURCE_MODE.AUTO,
+    choices: {
+      [SOURCE_MODE.AUTO]: "GLLG.settings.dnd5eSourceMode.auto",
+      [SOURCE_MODE.PLUTONIUM]: "GLLG.settings.dnd5eSourceMode.plutonium",
+      [SOURCE_MODE.INTERNAL]: "GLLG.settings.dnd5eSourceMode.internal"
+    }
+  });
+
   reg(SETTINGS.dnd5eSourcePack, {
     name: "GLLG.settings.dnd5eSourcePack.name",
     hint: "GLLG.settings.dnd5eSourcePack.hint",
+    scope: "world", config: true, type: String, default: ""
+  });
+
+  reg(SETTINGS.dnd5eSourceBooks, {
+    name: "GLLG.settings.dnd5eSourceBooks.name",
+    hint: "GLLG.settings.dnd5eSourceBooks.hint",
     scope: "world", config: true, type: String, default: ""
   });
 
@@ -147,7 +164,7 @@ export function registerSettings() {
  */
 /** Settings only meaningful under a given system (hidden under the other). */
 const PF2E_ONLY = [SETTINGS.variantABP, SETTINGS.proficiencyWithoutLevel, SETTINGS.heirloomMode, SETTINGS.heirloomArmor, SETTINGS.etchRunes];
-const DND5E_ONLY = [SETTINGS.dnd5eSourcePack, SETTINGS.dnd5eAutoImport];
+const DND5E_ONLY = [SETTINGS.dnd5eSourceMode, SETTINGS.dnd5eSourcePack, SETTINGS.dnd5eSourceBooks, SETTINGS.dnd5eAutoImport];
 
 function registerSettingsFormEnhancers() {
   Hooks.on("renderSettingsConfig", (_app, html) => {

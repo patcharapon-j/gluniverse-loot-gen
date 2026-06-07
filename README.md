@@ -33,6 +33,14 @@ Then enable it in a world running the **Pathfinder 2e** or **D&D 5e** system.
 > **D&D 5e:** install & enable the **Plutonium** module and import the 2024 content
 > (especially magic items) so there's a catalogue to draw from. With no Plutonium content
 > the generator falls back to whatever dnd5e (SRD) item packs are available.
+>
+> **Choosing your source (incl. homebrew):** the **D&D 5e loot source** setting pins where
+> loot comes from — *Auto* (Plutonium first, then SRD), *Plutonium only* (every find is a
+> Plutonium item), or *Internal compendiums only* (the system's bundled SRD, no external
+> modules). The **Allowed sources** setting then narrows *which books/homebrew within your
+> imported content* are eligible — a comma-separated list like `PHB, DMG, My Homebrew`
+> (blank = everything). Import your homebrew through Plutonium, then list its source name
+> here to run pure-homebrew or core-plus-homebrew loot from one compendium.
 
 > The LLM flavor layer (below) is **optional** and off by default — the module is fully
 > functional without it.

@@ -28,8 +28,13 @@ const MAX_ITEMS = 30;
 
 /** Build a full loot proposal for a 5e budget context (combat/cache/dungeon/quest). */
 export async function proposeHoard(request) {
-  await ensureContent({ notify: false });            // deep Plutonium sourcing (best-effort)
+  const src = await ensureContent({ notify: false }); // resolve the 5e source per mode
   const index = await getItemIndex();
+  if (!src.ok || !index.length) {
+    // A pinned source (Plutonium-only / internal-only) with nothing to draw from:
+    // tell the GM rather than silently dropping a coins-only hoard.
+    note("No D&D 5e item content is available for the current source mode — the hoard will contain coin only. Check the “D&D 5e loot source” setting and that the chosen compendium has items.", "warn");
+  }
   const level = request.partyLevel;
   const tags = request.tags;
   const context = request.context;
@@ -289,5 +294,6 @@ function clearIndexFor() { /* placeholder kept for symmetry; reindex handles it 
 /* ------------------------------ utils ------------------------------ */
 
 function safeSetting(key, fallback) { try { return game.settings.get(MODULE_ID, key); } catch { return fallback; } }
+function note(msg, level = "info") { try { ui.notifications?.[level]?.(`GLLG: ${msg}`); } catch { /* ignore */ } }
 function round2(n) { return Math.round(n * 100) / 100; }
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }

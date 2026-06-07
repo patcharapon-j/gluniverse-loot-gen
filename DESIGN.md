@@ -230,10 +230,25 @@ compendiums (`scripts/systems/dnd5e/plutonium.js`):
 
 - **Source discovery** prefers Plutonium-flagged / world Item packs, falling back
   to the dnd5e SRD so the module still works without Plutonium.
+- **Source mode** (`SETTINGS.dnd5eSourceMode`, `SOURCE_MODE`) lets the GM pin the
+  pool: **Auto** (Plutonium-first → SRD, with deep import), **Plutonium only**
+  (the "always use Plutonium" trigger — index *only* Plutonium-sourced packs;
+  the auditor reports `notReadyReason` if Plutonium isn't active), or **Internal
+  only** (the dnd5e system's own bundled SRD packs, never Plutonium/world and
+  never importing on demand). `sourcePacks()` narrows the candidate set by mode
+  before scoring.
+- **Per-source allow-list** (`SETTINGS.dnd5eSourceBooks`) layers on top: a
+  comma-separated list of book codes / homebrew names matched against each item's
+  `system.source` (falling back to Plutonium's source flag). This is the homebrew
+  control — Plutonium decides what gets *imported*, this decides which of the
+  imported sources are *eligible*, so a GM can run pure-homebrew or
+  core-plus-homebrew loot from a single mixed compendium. Memoized; homebrew names
+  match by substring; unsourced items are excluded while a list is set.
 - **Deep, on-demand import**: the generator can ask Plutonium to import a
   named item that isn't in a pack yet (e.g. an LLM-named "wanted" item), probing
   Plutonium's import API defensively and degrading gracefully when absent.
-- A GM setting picks a preferred source pack and toggles auto-import.
+  Disabled in Internal-only mode.
+- A GM setting also picks a preferred source pack and toggles auto-import.
 
 Because Plutonium's import API surface is not formally published and varies
 across its Foundry builds, the probe points are centralised in `importApi()` /

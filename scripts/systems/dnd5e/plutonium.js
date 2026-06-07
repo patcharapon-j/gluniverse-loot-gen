@@ -17,9 +17,15 @@
  * version without touching the rest of the engine.
  */
 
-import { MODULE_ID, SETTINGS } from "../../const.js";
+import { MODULE_ID, SETTINGS, SOURCE_MODE } from "../../const.js";
 
 export const PLUTONIUM_ID = "plutonium";
+
+/** The GM-selected 5e source mode (defaults to AUTO). */
+export function sourceMode() {
+  const m = String(safeSetting(SETTINGS.dnd5eSourceMode, SOURCE_MODE.AUTO) ?? "").trim();
+  return m === SOURCE_MODE.PLUTONIUM || m === SOURCE_MODE.INTERNAL ? m : SOURCE_MODE.AUTO;
+}
 
 /** Is the Plutonium module installed and active? */
 export function plutoniumActive() {
@@ -57,9 +63,10 @@ export function importApi() {
   return { api, importItem, importByName, openImporter };
 }
 
-/** Does Plutonium expose a usable on-demand import path right now? */
+/** Does Plutonium expose a usable on-demand import path right now? Never in
+ *  INTERNAL mode — that mode is pinned to already-present system compendiums. */
 export function canDeepImport() {
-  return plutoniumActive() && !!importApi();
+  return sourceMode() !== SOURCE_MODE.INTERNAL && plutoniumActive() && !!importApi();
 }
 
 /* ------------------------------ source packs ------------------------------ */
@@ -72,11 +79,20 @@ export function canDeepImport() {
  *   3. world Item compendiums (where Plutonium imports by default),
  *   4. the dnd5e system SRD packs (so the module still works with no Plutonium).
  * Returns a de-duplicated, priority-sorted pack array.
+ *
+ * The source MODE narrows the candidate set first:
+ *   PLUTONIUM — only Plutonium-sourced packs are eligible at all.
+ *   INTERNAL  — only the dnd5e system's own bundled (SRD) packs are eligible.
+ *   AUTO      — every Item pack is eligible and ranked by the score below.
  */
 export function sourcePacks() {
-  const itemPacks = [...(game.packs ?? [])].filter(
+  const mode = sourceMode();
+  let itemPacks = [...(game.packs ?? [])].filter(
     p => p.metadata?.type === "Item" || p.documentName === "Item"
   );
+
+  if (mode === SOURCE_MODE.PLUTONIUM) itemPacks = itemPacks.filter(isPlutoniumPack);
+  else if (mode === SOURCE_MODE.INTERNAL) itemPacks = itemPacks.filter(isInternalPack);
 
   const chosen = String(safeSetting(SETTINGS.dnd5eSourcePack, "") ?? "").trim();
   const scored = [];
@@ -95,9 +111,63 @@ export function sourcePacks() {
   }
 
   scored.sort((a, b) => b.score - a.score);
-  // Keep everything with any positive signal; if nothing scored, fall back to all.
+  // Keep everything with any positive signal; if nothing scored, fall back to
+  // the (already mode-filtered) candidate set so a pinned mode never leaks packs.
   const picked = scored.filter(s => s.score > 0).map(s => s.pack);
   return picked.length ? picked : itemPacks;
+}
+
+/** A pack that came from Plutonium (by package name, flag, or naming). */
+function isPlutoniumPack(pack) {
+  const pkg = pack.metadata?.packageName ?? pack.metadata?.package ?? "";
+  const id = `${pack.collection}`.toLowerCase();
+  const label = `${pack.metadata?.label ?? ""}`.toLowerCase();
+  return pkg === PLUTONIUM_ID || hasPlutoniumFlag(pack) ||
+    /plutonium|5etools|5e-tools|5e\.tools/.test(id + " " + label);
+}
+
+/** A pack bundled by the dnd5e system itself (the internal SRD compendiums). */
+function isInternalPack(pack) {
+  const pkg = pack.metadata?.packageName ?? pack.metadata?.package ?? "";
+  return pack.metadata?.packageType === "system" || pkg === "dnd5e";
+}
+
+/* ---------------------------- source allow-list ---------------------------- */
+
+let _allowRaw = null;
+let _allowSet = null;
+
+/**
+ * The GM's per-source allow-list (SETTINGS.dnd5eSourceBooks) as a normalized Set,
+ * or null when unrestricted. This is layered ON TOP of pack/mode selection so a
+ * GM can draw from, say, only their homebrew source even though Plutonium imported
+ * the core books into the same compendium. Memoized on the raw string.
+ */
+export function sourceAllowList() {
+  const raw = String(safeSetting(SETTINGS.dnd5eSourceBooks, "") ?? "").trim();
+  if (raw !== _allowRaw) {
+    _allowRaw = raw;
+    _allowSet = raw
+      ? new Set(raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean))
+      : null;
+  }
+  return _allowSet;
+}
+
+/**
+ * Is an item from the given source permitted? When no allow-list is set, every
+ * source passes. When one IS set, an item with no detectable source is excluded
+ * (the whole point of an allow-list is to opt in), and homebrew names match by
+ * substring so "My Homebrew" also accepts "My Homebrew Vol. 2".
+ */
+export function sourceAllowed(src) {
+  const allow = sourceAllowList();
+  if (!allow) return true;
+  const s = String(src ?? "").trim().toLowerCase();
+  if (!s) return false;
+  if (allow.has(s)) return true;
+  for (const a of allow) if (a && (s.includes(a) || a.includes(s))) return true;
+  return false;
 }
 
 function hasPlutoniumFlag(pack) {
@@ -115,9 +185,28 @@ function hasPlutoniumFlag(pack) {
  * catalogue; without one it no-ops (the packs already imported via Plutonium's
  * UI are indexed instead). Always resolves — never blocks loot generation.
  *
- * Returns { ok, mode } where mode ∈ "deep" | "indexed" | "srd" | "none".
+ * Returns { ok, mode } where mode ∈ "deep" | "indexed" | "srd" | "internal" | "none".
  */
 export async function ensureContent({ notify = true } = {}) {
+  const mode = sourceMode();
+
+  // INTERNAL: pinned to the system's own compendiums; never consult Plutonium.
+  if (mode === SOURCE_MODE.INTERNAL) {
+    const ok = hasAnySource();
+    if (notify) {
+      note(ok
+        ? "Internal-compendium mode — sourcing loot only from the dnd5e system's bundled (SRD) packs."
+        : "Internal-compendium mode is on, but no dnd5e system Item packs were found.", ok ? "info" : "warn");
+    }
+    return { ok, mode: ok ? "internal" : "none" };
+  }
+
+  // PLUTONIUM: require Plutonium; do not silently fall back to SRD.
+  if (mode === SOURCE_MODE.PLUTONIUM && !plutoniumActive()) {
+    if (notify) note("Source mode is set to Plutonium-only, but Plutonium is not active — install & enable it (or switch the source mode). No loot can be drawn.", "warn");
+    return { ok: false, mode: "none" };
+  }
+
   if (!plutoniumActive()) {
     if (notify) note("Plutonium is not active — sourcing loot from the available dnd5e compendiums (SRD).", "info");
     return { ok: hasAnySource(), mode: hasAnySource() ? "srd" : "none" };
@@ -145,6 +234,7 @@ export async function ensureContent({ notify = true } = {}) {
  * "wanted" items that aren't in the indexed packs yet.
  */
 export async function importItemByName(name) {
+  if (sourceMode() === SOURCE_MODE.INTERNAL) return null; // never import in internal-only mode
   const apis = importApi();
   if (!apis) return null;
   const fn = apis.importByName ?? apis.importItem;

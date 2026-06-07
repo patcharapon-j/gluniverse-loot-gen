@@ -24,7 +24,8 @@ import {
   signatureWeapon, signatureArmor, progressionAudit, normRarity, itemPriceGp, PHYSICAL_TYPES
 } from "./actor-reader.js";
 import { proposeHoard } from "./hoard.js";
-import { sourcePacks } from "./plutonium.js";
+import { sourcePacks, sourceMode, plutoniumActive, sourceAllowed } from "./plutonium.js";
+import { SOURCE_MODE } from "../../const.js";
 
 /* ------------------------------ index mapping ------------------------------ */
 
@@ -58,6 +59,20 @@ function attunementRequired(e) {
   return a === "required" || a === true || Number(a) === 1;
 }
 
+/**
+ * The item's content source (book code or homebrew name), used by the per-source
+ * allow-list. Reads the dnd5e system source field (object in v3+, string in older
+ * builds) and falls back to Plutonium's own source flag.
+ */
+function entrySource(e) {
+  const s = e.system?.source;
+  let v = "";
+  if (typeof s === "string") v = s;
+  else if (s && typeof s === "object") v = s.book || s.custom || s.value || s.id || "";
+  const flag = e.flags?.plutonium?.source ?? e.flags?.plutonium?.["homebrew"];
+  return String(v || flag || "").trim();
+}
+
 /* ------------------------------ item shape ------------------------------ */
 
 /** Add gp to a 5e actor's coin purse. */
@@ -83,7 +98,14 @@ export const dnd5eAdapter = {
   capabilities: { runes: false, heirloom: false, etch: false, attunement: true },
   sidecarSystem: "dnd5e",
 
-  notReadyReason() { return null; },
+  notReadyReason() {
+    // The "always use Plutonium" trigger: if the GM pinned Plutonium-only sourcing
+    // but Plutonium isn't active, say so plainly rather than generating empty loot.
+    if (sourceMode() === SOURCE_MODE.PLUTONIUM && !plutoniumActive()) {
+      return "GLLG.audit.plutoniumRequired";
+    }
+    return null;
+  },
 
   /* --- actors --- */
   resolveParty,
@@ -115,12 +137,16 @@ export const dnd5eAdapter = {
       "system.price.value", "system.price.denomination",
       "system.rarity", "system.properties", "system.attunement",
       "system.type.value", "system.type.baseItem",
-      "system.damage", "system.quantity"
+      "system.damage", "system.quantity",
+      "system.source", "system.source.book", "system.source.custom",
+      "flags.plutonium.source", "flags.plutonium.homebrew"
     ];
   },
   selectPacks: sourcePacks,
   indexEntry(e, pack) {
     if (!PHYSICAL_TYPES.has(e.type)) return null;
+    const source = entrySource(e);
+    if (!sourceAllowed(source)) return null;     // per-source allow-list (homebrew control)
     const raw = rawRarity(e);
     const magic = (!!raw && raw !== "none" && raw !== "common-mundane") || hasMgc(e) || attunementRequired(e);
     const rarity = magic ? normRarity(raw || "common") : "common";
@@ -136,6 +162,7 @@ export const dnd5eAdapter = {
       level: magic ? (RARITY_LEVEL[rarity] ?? 1) : 0,
       gp, rarity, magic, attunement: attunementRequired(e),
       traits: deriveTraits(e),
+      source,
       meta: null
     };
   },
