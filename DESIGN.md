@@ -175,6 +175,80 @@ The shop is the one context where gp flows *out* (players buy) instead of loot b
 - **Same engine drives the loot cascade (LLM "curator").** The selection-profile machinery is shared (`scripts/loot/selection-profile.js`) and is **not** shop-only: when the GM writes a concept in the generate dialog's *context note* and the LLM is on, the budget cascade (combat / exploration / dungeon / quest) and the single-item mode call `/loot-plan` for the same profile shape. It steers **only the discretionary layers** — the *named wants* (resolved to real, budgeted, level-bounded items and bought right after the math-critical phases) and the *fun-layer* weighting (trait/rarity/type). The **fundamental-gap** and **wealth-drift** phases stay entirely code-owned, so the model can flavour *what kind* of fun loot drops without ever skewing the wealth ledger. Graceful: null profile → plain theming, exactly as before.
 - **Entry points:** the **gem/wand/hammer**-style scene-control **shop button**, `Alt+S`, or `api.shop.proposeShop(req)` / `api.loot.shopRequest(opts)`.
 
+## 19. Multi-system architecture — D&D 5e (2024) support
+
+The engine is no longer PF2e-only. Everything system-specific lives behind a
+**`SystemAdapter`** (`scripts/systems/registry.js`); the one loot engine asks
+`getAdapter()` for the active system's adapter and never branches on
+`game.system.id` itself. Two adapters ship:
+
+- **`pf2e`** — the original behaviour, preserved exactly by delegating to the
+  existing `scripts/pf2e/*` modules. No functional change.
+- **`dnd5e`** — D&D 5e (2024 / "5.5e"), `scripts/systems/dnd5e/*`.
+
+**What the adapter owns:** sheet reading (party, level, net worth, signature
+gear), the treasure economy (per-level budget, threat estimation, share tables),
+the progression audit, compendium pack selection + index mapping, item-data
+shape (loot/merchant actor type, coins, description fields), the optional
+magic/rune layer, the generation strategy, and the LLM sidecar vocabulary. The
+shared engine (selector, auditor, budget, adapters, tags, cascade, materializer,
+decorator, shop, workshop) was rewired to call the adapter.
+
+### 19.1 D&D 5e economy — the 2024 DMG model (Q decision: *Native*)
+
+PF2e treats treasure as a tightly-priced gp budget; 5e does not. The 5e adapter
+implements the **2024 DMG treasure-hoard model** instead of the gp cascade
+(`scripts/systems/dnd5e/tables.js`, `hoard.js`):
+
+- **Tiers** by character level: 1 (1–4), 2 (5–10), 3 (11–16), 4 (17–20).
+- A hoard awards **monetary treasure** (coin + sellable valuables, scaled per
+  level/party size) **plus N magic items by count**, each rolled for **rarity**
+  from a per-tier weight table (common…legendary). The engine's contexts
+  (combat threat, cache tier, dungeon, quest tier) map to a magic-item-count
+  multiplier and a gold slice.
+- Rarity drives a representative **item "level"** so the existing level-window
+  selector works, and a **nominal gp value** so the wealth ledger has numbers.
+- **Threat** is estimated from monster **CR** against the 2024 DMG encounter XP
+  budget; bands reuse the engine's `trivial…extreme` keys.
+- Every figure is a tunable knob (cf. §17) — the *structure* is the contract.
+
+### 19.2 D&D 5e auditor (Q decision: *Attunement + rarity by tier*)
+
+5e has no runes and no mandatory magic (bounded accuracy), so there is no
+"math-critical fundamental." The 5e progression audit
+(`scripts/systems/dnd5e/actor-reader.js`) reports three **soft** readouts per PC
+— **attunement** slots used (cap 3), **magic-item count**, and **highest rarity
+carried** — each vs. a per-tier expectation. The wealth-drift panel compares
+live net worth (coins + item value + a nominal value for carried magic) to the
+expected curve. No PC is ever flagged CRITICAL on 5e.
+
+### 19.3 Plutonium integration (Q decision: *Deep importer*)
+
+The 5e content source is **Plutonium** (`plutonium-next`), which imports the full
+5etools catalogue — including all official 2024 magic items — into Foundry
+compendiums (`scripts/systems/dnd5e/plutonium.js`):
+
+- **Source discovery** prefers Plutonium-flagged / world Item packs, falling back
+  to the dnd5e SRD so the module still works without Plutonium.
+- **Deep, on-demand import**: the generator can ask Plutonium to import a
+  named item that isn't in a pack yet (e.g. an LLM-named "wanted" item), probing
+  Plutonium's import API defensively and degrading gracefully when absent.
+- A GM setting picks a preferred source pack and toggles auto-import.
+
+Because Plutonium's import API surface is not formally published and varies
+across its Foundry builds, the probe points are centralised in `importApi()` /
+`ensureContent()` and **fail soft** (notify + fall back), so a Plutonium version
+change never breaks loot generation — it only changes how much can be imported
+automatically vs. needing the GM's importer.
+
+### 19.4 What's PF2e-only
+
+Runes, rune-etching, heirloom (in-place rune awakening), and the ABP/fundamentals
+audit are PF2e capabilities (`adapter.capabilities`). On 5e the engine drops
+weapon/armor *magic items* directly instead of etching, the Workshop authors 5e
+items (rarity + attunement, no runes), and those settings are hidden in the
+config UI.
+
 ---
 
 ## Sources
@@ -185,3 +259,6 @@ The shop is the one context where gp flows *out* (players buy) instead of loot b
 - [Automatic Bonus Progression — AoN](https://2e.aonprd.com/Rules.aspx?ID=2741)
 - [Pathfinder Treasure & Loot guidelines — Pathfinder Authority](https://pathfinderauthority.com/pathfinder-treasure-and-loot-system)
 - [PF2e Loot Generator (prior-art module) — Foundry VTT](https://foundryvtt.com/packages/pf2e-loot-generator)
+- [D&D 2024 Dungeon Master's Guide — Treasure Hoards (p.121) & Magic Item Rarities (p.218)](https://www.dndbeyond.com/sources/dnd/dmg-2024)
+- [Plutonium (plutonium-next) — 5etools Foundry importer](https://github.com/TheGiddyLimit/plutonium-next)
+- [D&D 5e system data models — Foundry VTT](https://github.com/foundryvtt/dnd5e)

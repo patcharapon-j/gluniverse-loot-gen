@@ -1,13 +1,22 @@
 # GLUniverse — Loot Generator
 
-A premium, dynamic **Pathfinder 2e** loot generator for **Foundry VTT v13+**, with a
-live gear **health-check ("the Auditor")**. Budget-aware, source-themed, treadmill-free
-loot — plus an auditor that reads your party's sheets and tells you who's ahead, behind,
-or missing fundamentals.
+A premium, dynamic loot generator for **Foundry VTT v13+**, with a live gear
+**health-check ("the Auditor")**, for **Pathfinder 2e** and **D&D 5e (2024 / "5.5e")**.
+Budget-aware, source-themed, treadmill-free loot — plus an auditor that reads your
+party's sheets and tells you who's ahead, behind, or under-geared.
 
-Everything reskins **balance-safe PF2e quantities** (Party Treasure by Level,
-Treasure-by-Encounter, the ABP curve as a yardstick) rather than inventing a parallel
-economy, so nothing you generate breaks the math.
+Everything reskins **balance-safe quantities** rather than inventing a parallel economy,
+so nothing you generate breaks the math:
+
+- **Pathfinder 2e** — Party Treasure by Level, Treasure-by-Encounter, the ABP curve as a
+  rune/fundamentals yardstick.
+- **D&D 5e (2024)** — the **2024 DMG treasure-hoard model** (monetary treasure + magic
+  items by count and **rarity per CR tier**), an **attunement + rarity-by-tier** auditor,
+  and content sourced from the **[Plutonium](https://github.com/TheGiddyLimit/plutonium-next)**
+  catalogue.
+
+A pluggable **system-adapter layer** keeps the one engine driving both systems; see
+[DESIGN.md §19](DESIGN.md).
 
 ---
 
@@ -19,7 +28,11 @@ In Foundry: **Add-on Modules → Install Module**, paste this **Manifest URL**:
 https://github.com/patcharapon-j/gluniverse-loot-gen/releases/latest/download/module.json
 ```
 
-Then enable it in a world running the **Pathfinder 2e** system.
+Then enable it in a world running the **Pathfinder 2e** or **D&D 5e** system.
+
+> **D&D 5e:** install & enable the **Plutonium** module and import the 2024 content
+> (especially magic items) so there's a catalogue to draw from. With no Plutonium content
+> the generator falls back to whatever dnd5e (SRD) item packs are available.
 
 > The LLM flavor layer (below) is **optional** and off by default — the module is fully
 > functional without it.
