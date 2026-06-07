@@ -13,11 +13,14 @@
  */
 
 import { MODULE_ID, SETTINGS, TARGET } from "../const.js";
-import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import { getAdapter } from "../systems/registry.js";
 import { iconNoteHtml } from "./icon-note.js";
 import { logLlmCall } from "./llm-log.js";
 import { sourcesLabel } from "./creature-sources.js";
 import { sanitizeRuneSet, buildRuneSet, runePriceOf, runeSetNames, themeRuneSlugs } from "../pf2e/runes.js";
+
+function resolveParty() { return getAdapter()?.resolveParty() ?? { partyActor: null, members: [] }; }
+function actorLevel(a) { return getAdapter()?.actorLevel(a) ?? 1; }
 
 // Authoring scales with how many items the model writes — a single item is
 // quick, but a batch can take a while. The cap keeps a runaway request bounded.
@@ -135,12 +138,16 @@ async function callWorkshop(params) {
     // Campaign variant rules that change item math — the model adjusts modifiers
     // and DCs to suit (e.g. Proficiency Without Level uses flatter numbers).
     rules: { proficiencyWithoutLevel: !!safeSetting(SETTINGS.proficiencyWithoutLevel, false) },
-    // Live PF2e vocabulary so the model encodes against the actual system.
-    pf2e: {
-      damageTypes: keysOf(cfg().damageTypes),
-      usages: keysOf(cfg().usages),
-      rarities: keysOf(cfg().rarityTraits, ["common", "uncommon", "rare", "unique"])
-    }
+    // Live system vocabulary so the model encodes against the actual system
+    // (PF2e traits/usages, or D&D 5e rarities/properties). Includes `system`.
+    ...(getAdapter()?.traitVocab?.() ?? {
+      system: "pf2e",
+      pf2e: {
+        damageTypes: keysOf(cfg().damageTypes),
+        usages: keysOf(cfg().usages),
+        rarities: keysOf(cfg().rarityTraits, ["common", "uncommon", "rare", "unique"])
+      }
+    })
   };
 
   const t0 = Date.now();
@@ -254,10 +261,14 @@ function buildCustomItemData(spec, prompt, sources) {
   }
   const flags = { [MODULE_ID]: wf };
 
+  // D&D 5e items have an entirely different data model (no runes; rarity +
+  // attunement instead) — build them via the 5e path.
+  if (getAdapter()?.id === "dnd5e") return buildDnd5eItemData(spec, description, flags);
+
   // Resolve a legal, RAW-priced rune set for a weapon/armor (null otherwise), so
   // a bespoke magic blade/armor actually carries its runes on the sheet — not
   // just prose. The set is baked into system.runes and the base price below.
-  const runeInfo = resolveSpecRunes(spec);
+  const runeInfo = getAdapter()?.capabilities?.etch ? resolveSpecRunes(spec) : null;
 
   const data = {
     name: spec.name,
@@ -279,6 +290,86 @@ function buildCustomItemData(spec, prompt, sources) {
     flags
   };
   return { data: validateItemData(fallback) ?? fallback, runeInfo: null };
+}
+
+/* ------------------------------ D&D 5e authoring ------------------------------ */
+
+const DND5E_RARITIES = new Set(["common", "uncommon", "rare", "very rare", "legendary", "artifact"]);
+const DIE_FACES = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12 };
+
+/** Normalize a model-supplied rarity to a canonical 5e rarity. */
+function normDnd5eRarity(r) {
+  let s = String(r ?? "").trim().toLowerCase();
+  if (s === "veryrare" || s === "very-rare") s = "very rare";
+  return DND5E_RARITIES.has(s) ? s : "common";
+}
+
+/** Map a workshop type label to a D&D 5e item type. */
+function normDnd5eType(spec) {
+  switch (spec.type) {
+    case "weapon": return "weapon";
+    case "armor": return "equipment";          // 5e armor is an "equipment" item with an armor type
+    case "consumable": return "consumable";
+    case "treasure": return "loot";
+    default: return isToolName(spec.name) ? "tool" : "equipment";
+  }
+}
+function isToolName(name) {
+  return /\b(tools?|kit|supplies|instrument|deck|dice|set)\b/i.test(String(name ?? ""));
+}
+
+/**
+ * Build a D&D 5e item from a workshop spec. Only the core, system-neutral fields
+ * are authored (name, description, price, rarity, attunement, magical flag, a
+ * minimal type/damage block); the live dnd5e DataModel — via validateItemData —
+ * fills every mechanical default and strips anything invalid, so the GM gets a
+ * real, editable item. No runes (5e has none).
+ */
+function buildDnd5eItemData(spec, description, flags) {
+  const rarity = normDnd5eRarity(spec.rarity);
+  const magic = rarity !== "common" || !!spec.attunement || isMagicalName(spec.name);
+  const type = normDnd5eType(spec);
+
+  const system = {
+    description: { value: description },
+    price: { value: Math.max(0, Number(spec.price) || 0), denomination: "gp" },
+    quantity: 1,
+    rarity,
+    identified: true,
+    attunement: spec.attunement ? "required" : "",
+    properties: magic ? ["mgc"] : []
+  };
+
+  if (type === "weapon") {
+    const ranged = /bow|crossbow|sling|dart|firearm|gun|pistol|javelin/i.test(spec.name) || /ranged/i.test(spec.category ?? "");
+    const martial = /martial/i.test(spec.category ?? "") || true; // default martial; GM can change
+    system.type = { value: `${martial ? "martial" : "simple"}${ranged ? "R" : "M"}`, baseItem: normalizeSlug(spec.baseItem) || "" };
+    const faces = DIE_FACES[String(spec.damageDie ?? "").toLowerCase()] ?? 8;
+    const dt = String(spec.damageType ?? "slashing").toLowerCase();
+    // v4 damage shape; the DataModel migrates older shapes if needed.
+    system.damage = { base: { number: 1, denomination: faces, types: [dt] } };
+  } else if (spec.type === "armor") {
+    const cat = /heavy/i.test(spec.category ?? "") ? "heavy" : /medium/i.test(spec.category ?? "") ? "medium" : "light";
+    const baseAc = cat === "heavy" ? 16 : cat === "medium" ? 14 : 11;
+    system.type = { value: cat, baseItem: normalizeSlug(spec.baseItem) || "" };
+    system.armor = { value: Number(spec.acBonus) || baseAc };
+  }
+
+  const data = { name: spec.name, type, img: defaultImg5e(type), system, flags };
+  return { data: validateItemData(data) ?? data, runeInfo: null };
+}
+
+function isMagicalName(name) {
+  return /\b(of|enchanted|magic|magical|arcane|holy|cursed|\+\d)\b/i.test(String(name ?? ""));
+}
+function defaultImg5e(type) {
+  switch (type) {
+    case "weapon": return "icons/svg/sword.svg";
+    case "consumable": return "icons/svg/tankard.svg";
+    case "loot": return "icons/svg/coins.svg";
+    case "tool": return "icons/svg/anchor.svg";
+    default: return "icons/svg/item-bag.svg";
+  }
 }
 
 /* ------------------------------ rune etching ------------------------------ */
@@ -450,11 +541,14 @@ function validateItemData(data) {
 
 /** Defensive client-side sanitize of one raw spec from the sidecar. */
 function sanitizeSpec(raw) {
+  const dnd5e = getAdapter()?.id === "dnd5e";
   return {
     name: String(raw?.name ?? "").trim().slice(0, 120),
     type: normType(raw?.type),
     level: clampInt(raw?.level, 0, 25, 0),
-    rarity: validRarity(raw?.rarity),
+    // Keep the system's own rarity vocabulary (PF2e: common/uncommon/rare/unique;
+    // 5e: …/very rare/legendary/artifact) so it survives into the item builder.
+    rarity: dnd5e ? normDnd5eRarity(raw?.rarity) : validRarity(raw?.rarity),
     price: clampPrice(raw?.price),
     bulk: raw?.bulk,
     usage: String(raw?.usage ?? "").slice(0, 60),
@@ -464,6 +558,9 @@ function sanitizeSpec(raw) {
     baseItem: String(raw?.baseItem ?? raw?.base ?? raw?.baseType ?? "").slice(0, 60),
     damageType: raw?.damageType ?? raw?.damagetype ?? null,
     damageDie: raw?.damageDie ?? raw?.die ?? null,
+    // 5e-only: attunement requirement + an armor class for armor specs.
+    attunement: raw?.attunement === true || /require|attun/i.test(String(raw?.attunement ?? "")),
+    acBonus: raw?.acBonus ?? raw?.ac ?? raw?.armorClass ?? null,
     runes: extractRawRunes(raw),
     description: cleanText(raw?.description, 1500),
     flavor: cleanText(raw?.flavor, 280),

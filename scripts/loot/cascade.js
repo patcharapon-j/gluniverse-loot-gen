@@ -24,6 +24,7 @@ import { signatureWeapon, signatureArmor, resolveParty, actorLevel } from "../pf
 import {
   requestSelectionProfile, applyExclude, profileWeight, rarityLeanBias, resolveWanted
 } from "./selection-profile.js";
+import { getAdapter } from "../systems/registry.js";
 
 const ARMOR_AXES = new Set(["defense", "resilient"]);
 
@@ -43,6 +44,13 @@ export async function proposeLoot(request) {
     return proposeShop(request);
   }
   if (request?.meta?.single) return proposeSingle(request);
+
+  // Systems whose treasure is awarded by item count + rarity (D&D 5e's 2024 DMG
+  // model) run their own hoard generator instead of the PF2e gp cascade below.
+  const adapter = getAdapter();
+  if (adapter?.generation === "dmg-hoard" && typeof adapter.proposeHoard === "function") {
+    return adapter.proposeHoard(request);
+  }
 
   const index = await getItemIndex();
   const level = request.partyLevel;
@@ -481,6 +489,7 @@ async function planLoot(request, level, tags) {
     brief,
     context: request.context,
     level,
+    system: getAdapter()?.sidecarSystem ?? "pf2e",
     maxLevel: level + 2,
     count: Number.isFinite(request.maxItems) ? request.maxItems : null,
     theme: themeWordsFor(tags),

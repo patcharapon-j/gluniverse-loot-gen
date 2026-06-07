@@ -2,6 +2,10 @@
 
 import { MODULE_ID, HOOKS, CONTEXT } from "./const.js";
 import { registerSettings } from "./settings.js";
+// Register the system adapters (self-register on import; see scripts/systems/).
+import "./systems/pf2e/adapter.js";
+import "./systems/dnd5e/adapter.js";
+import { getAdapter, systemSupported } from "./systems/registry.js";
 import { AuditorDashboard } from "./apps/auditor.js";
 import { WealthLedger } from "./auditor/ledger.js";
 import { buildReport } from "./auditor/health-check.js";
@@ -37,8 +41,11 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
-  if (game.system?.id !== "pf2e") {
-    console.warn(`${MODULE_ID} | Pathfinder 2e system not active — the Loot Auditor is idle.`);
+  const adapter = getAdapter();
+  if (!systemSupported()) {
+    console.warn(`${MODULE_ID} | no loot adapter for the "${game.system?.id}" system — the module is idle.`);
+  } else {
+    console.log(`${MODULE_ID} | active adapter: ${adapter.label} (${adapter.id})`);
   }
   bindReviewCardActions();
 });

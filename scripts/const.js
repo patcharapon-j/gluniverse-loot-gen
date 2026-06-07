@@ -26,6 +26,12 @@ export const SETTINGS = {
   heirloomArmor: "heirloomArmor",         // Boolean (world): also awaken armor fundamentals (else weapons only)
   etchRunes: "etchRunes",                 // Boolean (world): etch appropriate rune sets onto generated weapon/armor loot
 
+  // --- D&D 5e (Plutonium) sourcing ---
+  dnd5eSourceMode: "dnd5eSourceMode",     // String (world): "auto" | "plutonium" | "internal" — where 5e loot is drawn from (see SOURCE_MODE)
+  dnd5eSourcePack: "dnd5eSourcePack",     // String (world): preferred source compendium collection id (blank = auto, Plutonium-first)
+  dnd5eSourceBooks: "dnd5eSourceBooks",   // String (world): comma-separated allow-list of item source codes/homebrew names (blank = all). Filters by each item's source (e.g. "PHB, DMG, My Homebrew").
+  dnd5eAutoImport: "dnd5eAutoImport",     // Boolean (world): let Plutonium auto-import catalogue content on demand when its API is available
+
   // --- LLM flavor sidecar (build #6, DESIGN §14) ---
   llmFlavor: "llmFlavor",                 // Boolean (world): request LLM provenance/flavor from the sidecar
   sidecarUrl: "sidecarUrl",               // String (world): base URL of the claude -p sidecar (same-origin path or full URL)
@@ -41,6 +47,20 @@ export const SETTINGS = {
 
 /** Shopping-access → baseline share of budget spent on "core" items (AoN guidance). */
 export const CORE_RATIO = { free: 0.5, limited: 0.75, none: 1.0 };
+
+/**
+ * D&D 5e loot source modes (SETTINGS.dnd5eSourceMode). Controls which
+ * compendiums the 5e engine draws from and whether it may deep-import:
+ *   AUTO       — Plutonium-first, then any world/SRD pack; deep import allowed.
+ *   PLUTONIUM  — *only* Plutonium-sourced packs; the "always use Plutonium" trigger.
+ *   INTERNAL   — *only* the dnd5e system's own bundled compendiums (SRD); never
+ *                touches Plutonium or external world packs, and never imports.
+ */
+export const SOURCE_MODE = {
+  AUTO: "auto",
+  PLUTONIUM: "plutonium",
+  INTERNAL: "internal"
+};
 
 /** Ledger bucket for loot awarded to the party but not yet divvied to a PC. */
 export const PARTY_LEDGER_KEY = "party";

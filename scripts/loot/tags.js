@@ -7,6 +7,7 @@
 
 import { MODULE_ID } from "../const.js";
 import { makeTags } from "./request.js";
+import { getAdapter } from "../systems/registry.js";
 
 /** Resolve a token/placeable/actor argument to its actor. */
 function actorOf(tok) {
@@ -15,30 +16,31 @@ function actorOf(tok) {
 
 /**
  * Auto-derive tags from a set of tokens/actors — the defeated NPCs of a fight
- * or the occupants of a dungeon. Collects PF2e creature traits and the highest
- * level present. `extra` is merged in (e.g. a party-level hint).
+ * or the occupants of a dungeon. Collects the system's creature traits/types and
+ * the highest level (PF2e) / CR (5e) present. `extra` is merged in.
  */
 export function tagsFromTokens(tokens, extra = {}) {
+  const adapter = getAdapter();
   const traits = [];
   let level = Number(extra.level) || 0;
   for (const tok of tokens ?? []) {
     const actor = actorOf(tok);
     if (!actor) continue;
-    const tv = actor?.system?.traits?.value ?? actor?.system?.traits ?? [];
-    if (Array.isArray(tv)) traits.push(...tv);
-    const lv = Number(actor?.system?.details?.level?.value) || 0;
+    traits.push(...(adapter?.actorTraits(actor) ?? []));
+    const lv = adapter?.actorLevelOf(actor) ?? 0;
     if (lv > level) level = lv;
   }
   return makeTags({ ...extra, traits: [...(extra.traits ?? []), ...traits], level });
 }
 
-/** Just the actor levels of a token set (feeds the threat estimator). */
+/** Just the actor levels/CRs of a token set (feeds the threat estimator). */
 export function levelsFromTokens(tokens) {
+  const adapter = getAdapter();
   const out = [];
   for (const tok of tokens ?? []) {
     const actor = actorOf(tok);
-    const lv = Number(actor?.system?.details?.level?.value);
-    if (Number.isFinite(lv)) out.push(lv);
+    const lv = adapter?.actorLevelOf(actor);
+    if (Number.isFinite(lv) && lv > 0) out.push(lv);
   }
   return out;
 }

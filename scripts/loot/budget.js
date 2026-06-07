@@ -1,30 +1,34 @@
 /**
  * Budget-source adapters (DESIGN §5). Each maps a context-specific "how big"
- * input to a gp amount, always derived from the RAW Party-Treasure-by-Level
- * budget so totals stay inside core balance (DESIGN §2). Nothing here invents
- * value — it only slices the level budget.
+ * input to a gp amount, derived from the active system's per-level treasure
+ * budget so totals stay inside that system's balance (DESIGN §2/§19). Nothing
+ * here invents value — it only slices the level budget. The per-level budget and
+ * the share tables come from the active SystemAdapter (PF2e: Party Treasure by
+ * Level; D&D 5e: the 2024 DMG hoard gold).
  */
 
-import {
-  budgetForLevel, ENCOUNTER_THREAT_SHARE, CACHE_TIER_SHARE, QUEST_REWARD_SHARE
-} from "../pf2e/tables.js";
+import { getAdapter } from "../systems/registry.js";
+
+function adapter() { return getAdapter(); }
+function levelBudget(level, size) { return adapter()?.budgetForLevel(level, size) ?? 0; }
+function share(kind, key, fallbackKey) {
+  const table = adapter()?.budgetShares?.[kind] ?? {};
+  return table[key] ?? table[fallbackKey] ?? 0;
+}
 
 /** Post-combat: threat band → slice of the level budget. */
 export function combatBudgetGp(threat, level, partySize = 4) {
-  const share = ENCOUNTER_THREAT_SHARE[threat] ?? ENCOUNTER_THREAT_SHARE.moderate;
-  return Math.round(budgetForLevel(level, partySize) * share);
+  return Math.round(levelBudget(level, partySize) * share("encounter", threat, "moderate"));
 }
 
 /** Exploration: cache tier → slice of the level budget. */
 export function cacheBudgetGp(tier, level, partySize = 4) {
-  const share = CACHE_TIER_SHARE[tier] ?? CACHE_TIER_SHARE.standard;
-  return Math.round(budgetForLevel(level, partySize) * share);
+  return Math.round(levelBudget(level, partySize) * share("cache", tier, "standard"));
 }
 
 /** Quest reward: GM-picked tier → slice of the level budget. */
 export function questBudgetGp(tier, level, partySize = 4) {
-  const share = QUEST_REWARD_SHARE[tier] ?? QUEST_REWARD_SHARE.standard;
-  return Math.round(budgetForLevel(level, partySize) * share);
+  return Math.round(levelBudget(level, partySize) * share("quest", tier, "standard"));
 }
 
 /** Dungeon: the whole complex is sized like a cache tier, then parcelled. */
