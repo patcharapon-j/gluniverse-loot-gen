@@ -489,6 +489,7 @@ async function planLoot(request, level, tags) {
     brief,
     context: request.context,
     level,
+    system: getAdapter()?.sidecarSystem ?? "pf2e",
     maxLevel: level + 2,
     count: Number.isFinite(request.maxItems) ? request.maxItems : null,
     theme: themeWordsFor(tags),

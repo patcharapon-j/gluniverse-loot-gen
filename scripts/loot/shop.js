@@ -27,10 +27,13 @@ import {
 import { themeRuneSlugs } from "../pf2e/runes.js";
 import { runWorkshop } from "./workshop.js";
 import { logLlmCall } from "./llm-log.js";
-import { resolveParty, actorLevel } from "../pf2e/actor-reader.js";
+import { getAdapter } from "../systems/registry.js";
 import {
   requestSelectionProfile, resolveWanted, pickByProfile, makeRuned, toPick, rarityLeanBias
 } from "./selection-profile.js";
+
+function resolveParty() { return getAdapter()?.resolveParty() ?? { partyActor: null, members: [] }; }
+function actorLevel(a) { return getAdapter()?.actorLevel(a) ?? 1; }
 
 const PERMANENT_TYPES = new Set(["weapon", "armor", "shield", "equipment"]);
 const CONSUMABLE_TYPES = new Set(["consumable"]);
@@ -76,8 +79,10 @@ export async function proposeShop(request) {
   const coreRatio = CORE_RATIO[access] ?? 0.75;
   const baseUnusual = clamp((1 - coreRatio) + spec.unusual, 0, 1);
 
-  const etch = !!safeSetting(SETTINGS.etchRunes, true);
-  const themeSlugs = themeRuneSlugs(tags);
+  // Rune etching is a PF2e-only capability; on systems without it (D&D 5e) shops
+  // stock pre-made magic items instead of freshly-etched runed bases.
+  const etch = !!getAdapter()?.capabilities?.etch && !!safeSetting(SETTINGS.etchRunes, true);
+  const themeSlugs = etch ? themeRuneSlugs(tags) : [];
   const maxLevel = level + spec.maxOffset;
 
   // Optional LLM "buyer" (DESIGN §18): turn the GM's free-text concept into a
@@ -273,7 +278,8 @@ async function maybeAuthorSignatures(proposal) {
 function signaturePrompt(proposal) {
   const tier = proposal.shop?.tier || "shop";
   const theme = themeWords(proposal.request?.tags);
-  const base = `Signature, memorable stock for a ${tier}-class Pathfinder 2e shop`
+  const systemName = getAdapter()?.label ?? "Pathfinder 2e";
+  const base = `Signature, memorable stock for a ${tier}-class ${systemName} shop`
     + (theme ? ` themed around ${theme}` : "")
     + `. Design desirable, distinctive items this particular shop would be known for — balance-safe and fairly priced for around level ${proposal.level}.`;
   const note = String(proposal.request?.meta?.extraContext ?? "").trim();
