@@ -138,7 +138,7 @@ export const dnd5eAdapter = {
       "system.rarity", "system.properties", "system.attunement",
       "system.type.value", "system.type.baseItem",
       "system.damage", "system.quantity",
-      "system.source", "system.source.book", "system.source.custom",
+      "system.source",
       "flags.plutonium.source", "flags.plutonium.homebrew"
     ];
   },
