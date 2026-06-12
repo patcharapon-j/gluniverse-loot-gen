@@ -42,7 +42,24 @@ export const SETTINGS = {
 
   // --- Auditor window (client) ---
   auditorPosition: "auditorPosition",     // Object (client): {left,top}
-  auditorHidden: "auditorHidden"          // Boolean (client): window hidden on this screen
+  auditorHidden: "auditorHidden",         // Boolean (client): window hidden on this screen
+
+  // --- Presentation (client) ---
+  motionTier: "motionTier"                // String (client): "reduced" | "default" | "cinematic" — animation intensity (see MOTION_TIER)
+};
+
+/**
+ * Motion tiers (design-language §6.4). A per-screen visual preference applied as
+ * a `gllg-motion-<tier>` class on <body>; `prefers-reduced-motion` is always a
+ * hard floor on top of whatever is chosen here.
+ *   REDUCED   — no sheens/loops; ceremonies become straight fades.
+ *   DEFAULT   — durations/easings exactly as the language specifies.
+ *   CINEMATIC — durations ×1.4, sheens gain a trailing flare, holds linger.
+ */
+export const MOTION_TIER = {
+  REDUCED: "reduced",
+  DEFAULT: "default",
+  CINEMATIC: "cinematic"
 };
 
 /** Shopping-access → baseline share of budget spent on "core" items (AoN guidance). */

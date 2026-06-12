@@ -32,6 +32,11 @@ function renderProgress(title, detail) {
     <header class="gllg-card-head">
       <div class="gllg-card-title"><i class="fa-solid fa-wand-sparkles fa-beat-fade"></i> ${esc(title)}</div>
       ${detail ? `<div class="gllg-card-sub">${esc(detail)}</div>` : ""}
+      <span class="gllg-bracket gllg-bracket-tl" aria-hidden="true"></span>
+      <div class="gllg-headreg" aria-hidden="true">
+        <span class="gllg-datastrip"></span>
+        <span class="gllg-serial">GLU·LOOT // SIDECAR</span>
+      </div>
     </header>
     <div class="gllg-progress-body">
       <span class="gllg-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i></span>

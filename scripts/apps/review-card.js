@@ -197,6 +197,19 @@ async function rerollOnePick(proposal, old, budget) {
 
 /* -------------------------------- rendering -------------------------------- */
 
+/**
+ * Etched-glass registration garnish for a card header (design-language §4.2):
+ * a quiet L-bracket on the lead corner plus a serial designator + barcode-style
+ * data strip. Purely decorative — hidden from assistive tech.
+ */
+function headReg(serial) {
+  return `<span class="gllg-bracket gllg-bracket-tl" aria-hidden="true"></span>
+    <div class="gllg-headreg" aria-hidden="true">
+      <span class="gllg-datastrip"></span>
+      <span class="gllg-serial">${esc(serial)}</span>
+    </div>`;
+}
+
 function renderCard(p) {
   const multi = p.parcels.length > 1;
   const parcels = p.parcels.map(parcel => renderParcel(parcel, multi)).join("");
@@ -205,6 +218,7 @@ function renderCard(p) {
     <header class="gllg-card-head">
       <div class="gllg-card-title"><i class="fa-solid fa-wand-sparkles"></i> ${esc(p.label || "Loot proposal")}</div>
       <div class="gllg-card-sub">${esc(p.context)} · Lv ${p.level} · ${p.itemCount} item(s) · ${gp(p.totalGp)} gp</div>
+      ${headReg(`GLU·LOOT // ${String(p.context || "loot").toUpperCase()}`)}
     </header>
     ${renderKeeper(p)}
     ${reasons ? `<details class="gllg-why" open><summary>Why these picks</summary><ul>${reasons}</ul></details>` : ""}
@@ -324,6 +338,7 @@ function renderDone(p, res) {
     <header class="gllg-card-head">
       <div class="gllg-card-title"><i class="fa-solid fa-circle-check"></i> Loot materialized</div>
       <div class="gllg-card-sub">${esc(p.label || "")} · ${gp(p.totalGp)} gp recorded</div>
+      ${headReg(res.ok ? "GLU·LOOT // COMMITTED" : "GLU·LOOT // ABORTED")}
     </header>
     ${res.ok ? `<ul class="gllg-created">${list}</ul>` : `<p class="gllg-err">${esc(res.reason || "Failed")}</p>`}
   </div>`;

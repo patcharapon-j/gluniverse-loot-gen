@@ -1,7 +1,7 @@
 /** GLUniverse — Loot Generator : module entry point. */
 
 import { MODULE_ID, HOOKS, CONTEXT } from "./const.js";
-import { registerSettings } from "./settings.js";
+import { registerSettings, applyMotionTier } from "./settings.js";
 // Register the system adapters (self-register on import; see scripts/systems/).
 import "./systems/pf2e/adapter.js";
 import "./systems/dnd5e/adapter.js";
@@ -41,6 +41,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  applyMotionTier();   // reflect the motion-tier preference onto <body>
   const adapter = getAdapter();
   if (!systemSupported()) {
     console.warn(`${MODULE_ID} | no loot adapter for the "${game.system?.id}" system — the module is idle.`);

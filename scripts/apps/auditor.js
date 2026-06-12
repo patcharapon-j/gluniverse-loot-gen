@@ -95,6 +95,8 @@ export class AuditorDashboard extends HandlebarsApplicationMixin(ApplicationV2) 
       avgLevel: p.avgLevel,
       counts: p.counts,
       hasIssues: (p.counts.critical + p.counts.behind) > 0,
+      // Etched-glass registration serial — a quiet technical designator (§4.2).
+      serial: `GLU·AUDIT // ${p.size}P · L${p.avgLevel}`,
       wealth: this._viewWealth(p.wealth)
     };
   }
