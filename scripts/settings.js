@@ -1,10 +1,25 @@
 /** Setting registration for GLUniverse — Loot Generator. */
 
-import { MODULE_ID, SETTINGS, SOURCE_MODE } from "./const.js";
+import { MODULE_ID, SETTINGS, SOURCE_MODE, MOTION_TIER } from "./const.js";
 import { LlmLogViewer } from "./apps/llm-log.js";
 
 export function registerSettings() {
   const reg = (key, data) => game.settings.register(MODULE_ID, key, data);
+
+  // --- Presentation (per-screen) ---
+  // Animation intensity for every GLLG surface. Client-scoped (a player can dial
+  // the polish to taste / their hardware); applied live as a <body> class.
+  reg(SETTINGS.motionTier, {
+    name: "GLLG.settings.motionTier.name",
+    hint: "GLLG.settings.motionTier.hint",
+    scope: "client", config: true, type: String, default: MOTION_TIER.DEFAULT,
+    choices: {
+      [MOTION_TIER.REDUCED]: "GLLG.settings.motionTier.reduced",
+      [MOTION_TIER.DEFAULT]: "GLLG.settings.motionTier.default",
+      [MOTION_TIER.CINEMATIC]: "GLLG.settings.motionTier.cinematic"
+    },
+    onChange: applyMotionTier
+  });
 
   // --- World config ---
   reg(SETTINGS.shoppingAccess, {
@@ -154,6 +169,19 @@ export function registerSettings() {
   });
 
   registerSettingsFormEnhancers();
+}
+
+/**
+ * Reflect the chosen motion tier onto <body> as `gllg-motion-<tier>` so the
+ * stylesheet can scope animation intensity. Safe to call before `ready` (reads
+ * the setting defensively) and idempotent. Call once on ready and on change.
+ */
+export function applyMotionTier() {
+  let tier = MOTION_TIER.DEFAULT;
+  try { tier = game.settings.get(MODULE_ID, SETTINGS.motionTier) || MOTION_TIER.DEFAULT; } catch { /* pre-init */ }
+  const body = document.body;
+  if (!body) return;
+  for (const t of Object.values(MOTION_TIER)) body.classList.toggle(`gllg-motion-${t}`, t === tier);
 }
 
 /**

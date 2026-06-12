@@ -11,6 +11,8 @@
 
   {{!-- ===== party summary banner ===== --}}
   <header class="gllg-party">
+    {{!-- etched registration mark: a quiet L-bracket on the lead corner (§4.2) --}}
+    <span class="gllg-bracket gllg-bracket-tl" aria-hidden="true"></span>
     <div class="gp-id">
       <div class="gp-name">{{party.name}}</div>
       <div class="gp-meta">
@@ -85,6 +87,12 @@
     {{/each}}
   </div>
 
-  <footer class="gllg-foot">{{localize 'GLLG.audit.estimateNote'}}</footer>
+  {{!-- etched footer: CMYK registration chips + serial + data strip + note --}}
+  <footer class="gllg-foot">
+    <span class="gllg-cmyk" aria-hidden="true"></span>
+    <span class="gllg-serial">{{party.serial}}</span>
+    <span class="gllg-datastrip" aria-hidden="true"></span>
+    <span class="gllg-foot-note">{{localize 'GLLG.audit.estimateNote'}}</span>
+  </footer>
   {{/unless}}
 </div>

@@ -1,48 +1,127 @@
 /* ============================================================
-   GLUniverse — Loot Generator : Auditor styles
-   Shares the "Arcane Glass" design language of GLUniverse —
-   Clocks & Tracker: Oxanium display face, layered glass panels,
-   soft glow halos, spring-eased motion, tabular numerals.
-   Everything is scoped to the auditor window (#gllg-auditor).
+   GLUniverse — Loot Generator : "Etched Glass" design language
+   ------------------------------------------------------------
+   Implements the canonical GL Universe look (design-language v1.0):
+   liquid glass as the MATERIAL, Endfield precision as the DRAFTING
+   layer etched on top — chamfered corners, hairline registration
+   marks, precision rules of light, a technical micro-type voice,
+   and light-led motion. Shared `--gl-*` tokens, a dynamic
+   `--gl-accent` channel driven here by SEVERITY/TIER context, and
+   semantic signal-amber / hazard-red accents.
+
+   Every surface this module paints lives here:
+     · #gllg-auditor          gear health-check window
+     · .gllg-card             review / done / progress chat cards
+     · .gllg-handout          plain reward hand-out
+     · .gllg-generate         generate + workshop dialogs
+     · .gllg-llm-log          LLM call-log window
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Share+Tech+Mono&display=swap');
 
+/* ============================================================
+   1 · Shared tokens  (design-language §2 · §6.1)
+   Declared on every root we paint — chat cards live outside the
+   app windows, so the token block can't rely on a single :root.
+   ============================================================ */
+#gllg-auditor,
+.gllg-card,
+.gllg-handout,
+.application.gllg-generate,
+.application.gllg-llm-log,
+.chat-message:has(.gllg-card){
+  /* — ink ramp (surfaces) — */
+  --gl-ink-0:#02070b; --gl-ink-1:#080b11; --gl-ink-2:#0b0f17; --gl-ink-3:#161d2c;
+  /* — text — */
+  --gl-text:#eef1f7; --gl-text-bright:#f3fbff; --gl-text-dim:#98a2b6;
+  --gl-text-faint:rgba(243,251,255,.38);
+  /* — lines & rims — */
+  --gl-hair:rgba(255,255,255,.08); --gl-edge:rgba(255,255,255,.13);
+  --gl-line-strong:rgba(244,252,255,.55);
+  /* — fixed semantic accents — */
+  --gl-signal:#ffd24a; --gl-signal-hot:#ffe070; --gl-cyan:#5eeaff;
+  --gl-hazard:#ff4a52; --gl-good:#5fdb92; --gl-violet:#b497ff; --gl-mission:#37d99a;
+  /* — dynamic accent channel (set per-context below) — */
+  --gl-accent:#6b86d6;                                   /* default: night shift tint */
+  --gl-glow:color-mix(in srgb, var(--gl-accent) 50%, transparent);
+  --gl-bloom:color-mix(in srgb, var(--gl-accent) 18%, transparent);
+  /* — motion — */
+  --gl-ease:cubic-bezier(.16,1,.3,1);
+  --gl-snap:cubic-bezier(.2,1.35,.22,1);
+  --gl-pop:cubic-bezier(.34,1.56,.5,1);
+  --gl-exit:cubic-bezier(.55,0,.84,0);
+  --gl-d-quick:180ms; --gl-d-move:420ms; --gl-d-reveal:620ms; --gl-d-splash:720ms;
+  --gl-breathe:2.6s; --gl-dread:3.2s;
+  /* — type voices — */
+  --gl-display:"Oxanium","Segoe UI",system-ui,sans-serif;
+  --gl-tech:"Share Tech Mono","Bahnschrift","JetBrains Mono",Consolas,monospace;
+
+  /* — legacy module-local aliases (keep old rules working) — */
+  --ink:var(--gl-text); --muted:var(--gl-text-dim); --faint:#69748c;
+  --hair:var(--gl-hair); --edge:var(--gl-edge);
+  --tint:var(--gl-accent); --glow:var(--gl-glow); --glowsoft:var(--gl-bloom);
+  --font:var(--gl-display);
+
+  /* — severity ramp (semantic, paired with icons for colour-blind legibility).
+       crit → unified hazard; the rest keep distinct hues, glows DERIVED. — */
+  --crit:var(--gl-hazard);   --critsoft:color-mix(in srgb,var(--crit) 16%,transparent);   --critglow:color-mix(in srgb,var(--crit) 50%,transparent);
+  --behind:#e0a368;          --behindsoft:color-mix(in srgb,var(--behind) 16%,transparent);--behindglow:color-mix(in srgb,var(--behind) 50%,transparent);
+  --ok:var(--gl-good);       --oksoft:color-mix(in srgb,var(--ok) 14%,transparent);        --okglow:color-mix(in srgb,var(--ok) 45%,transparent);
+  --ahead:#6fb8d8;           --aheadsoft:color-mix(in srgb,var(--ahead) 14%,transparent);  --aheadglow:color-mix(in srgb,var(--ahead) 45%,transparent);
+}
+
+/* ============================================================
+   2 · Shared keyframes  (motion vocabulary, §6.2)
+   ============================================================ */
+@keyframes gllg-cardin{0%{opacity:0;transform:translateY(8px) scale(.985)}100%{opacity:1;transform:none}}
+@keyframes gllg-rise{0%{opacity:0;transform:translate3d(-6px,5px,0)}100%{opacity:1;transform:none}}
+/* sheen sweep — a precision rule of light drawn across a leading edge */
+@keyframes gllg-sweep{0%{transform:scaleX(0);opacity:0}30%{opacity:1}100%{transform:scaleX(1);opacity:0}}
+/* tactile pop — value/pip settling with a touch of overshoot */
+@keyframes gllg-pop{0%{transform:scale(.6)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+/* stamp — ceremony mark scale-in (COMPLETED) */
+@keyframes gllg-stamp{0%{opacity:0;transform:scale(.4) rotate(-8deg)}70%{opacity:1;transform:scale(1.14) rotate(2deg)}100%{transform:scale(1) rotate(0)}}
+/* breathe — idle pulse */
+@keyframes gllg-breathe{0%,100%{opacity:.45}50%{opacity:1}}
+/* dread — slow ominous glow swell for hazards */
+@keyframes gllg-dread{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 16px var(--critsoft)}}
+
+/* ============================================================
+   3 · Auditor window — gear health-check  (#gllg-auditor)
+   ============================================================ */
 #gllg-auditor{
-  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
-  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
-  --tint:#6b86d6; --glow:rgba(120,150,225,.5); --glowsoft:rgba(120,150,225,.16);
-  /* severity palette — kept distinct and colour-blind-legible via paired icons */
-  --crit:#e0584f; --critsoft:rgba(224,88,79,.16); --critglow:rgba(224,88,79,.5);
-  --behind:#e0a368; --behindsoft:rgba(224,163,104,.16); --behindglow:rgba(224,163,104,.5);
-  --ok:#67d39b; --oksoft:rgba(103,211,155,.14); --okglow:rgba(103,211,155,.45);
-  --ahead:#6fb8d8; --aheadsoft:rgba(111,184,216,.14); --aheadglow:rgba(111,184,216,.45);
-  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
-
   min-width:380px;
-  font:14px/1.45 var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+  font:14px/1.45 var(--gl-display); color:var(--gl-text); -webkit-font-smoothing:antialiased;
 }
 #gllg-auditor *{box-sizing:border-box}
 
-/* ---- window chrome: recolour the ApplicationV2 frame to dark glass ---- */
+/* ---- window chrome: the ApplicationV2 frame as a slab of frosted glass
+        (glass-panel §3.1). Frame keeps soft radii on all corners so it never
+        clips the native header controls / resize handle. ---- */
 #gllg-auditor.application{
-  border:1px solid var(--edge); border-radius:14px; overflow:hidden;
+  border:1px solid var(--gl-edge); border-radius:15px; overflow:hidden;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 22%),
-    linear-gradient(160deg, #161d2c, #0a0e16 78%);
-  box-shadow:0 28px 80px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.10), 0 0 60px var(--glowsoft);
-  backdrop-filter:blur(18px) saturate(1.12);
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 34%),
+    linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.20)),
+    linear-gradient(98deg, color-mix(in srgb, var(--gl-accent) 14%, var(--gl-ink-1)), var(--gl-ink-1) 64%);
+  box-shadow:
+    0 26px 70px rgba(0,0,0,.6),
+    0 2px 0 rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -12px 28px rgba(0,0,0,.38),
+    0 0 46px var(--gl-bloom);
+  backdrop-filter:blur(16px) saturate(1.15);
 }
 #gllg-auditor .window-header{
   background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
-  border-bottom:1px solid var(--hair); color:var(--ink);
-  font-family:var(--font); font-weight:700; letter-spacing:.02em;
+  border-bottom:1px solid var(--gl-hair); color:var(--gl-text);
+  font-family:var(--gl-tech); font-weight:700; letter-spacing:.14em; text-transform:uppercase;
 }
-#gllg-auditor .window-header .window-title{font-family:var(--font);font-weight:700}
-#gllg-auditor .window-header .header-control{color:var(--muted)}
-#gllg-auditor .window-header .header-control:hover{color:var(--ink)}
+#gllg-auditor .window-header .window-title{font-family:var(--gl-tech);font-weight:700;font-size:11px}
+#gllg-auditor .window-header .header-control{color:var(--gl-text-dim)}
+#gllg-auditor .window-header .header-control:hover{color:var(--gl-text)}
 #gllg-auditor .window-content{
-  background:none; color:var(--ink); padding:0; overflow-y:auto; overflow-x:hidden;
+  background:none; color:var(--gl-text); padding:0; overflow-y:auto; overflow-x:hidden;
 }
 
 /* ---- scrollbar ---- */
@@ -54,133 +133,170 @@
 #gllg-auditor .gllg-audit-root{padding:11px 12px 12px; display:flex; flex-direction:column; gap:11px}
 
 /* ============================ empty / error ============================ */
-#gllg-auditor .gllg-empty{display:flex;flex-direction:column;align-items:center;gap:12px;
-  padding:36px 24px;text-align:center;color:var(--muted)}
-#gllg-auditor .gllg-empty i{font-size:34px;color:var(--tint);filter:drop-shadow(0 0 14px var(--glowsoft));opacity:.85}
+/* hero/empty region carries a faint blueprint drafting grid under the scrim (§4.6) */
+#gllg-auditor .gllg-empty{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;
+  padding:36px 24px;text-align:center;color:var(--gl-text-dim);overflow:hidden;border-radius:12px;
+  background:
+    linear-gradient(180deg, rgba(2,7,11,.55), rgba(2,7,11,.7)),
+    linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+  background-size:auto, 28px 28px, 28px 28px}
+#gllg-auditor .gllg-empty i{font-size:34px;color:var(--gl-accent);filter:drop-shadow(0 0 14px var(--gl-bloom));opacity:.85}
 #gllg-auditor .gllg-empty p{margin:0;max-width:34ch;line-height:1.5}
 
 /* ============================ party banner ============================ */
-#gllg-auditor .gllg-party{display:flex;align-items:center;gap:10px;
-  padding:10px 12px;border-radius:12px;
-  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));
-  border:1px solid var(--hair);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+/* primary glass panel + signature chamfer (top-right cut, §4.1). clip-path
+   clips outer shadows, so drop+bloom ride a filter; inset light stays. */
+#gllg-auditor .gllg-party{position:relative;display:flex;align-items:center;gap:10px;
+  padding:11px 13px;border-radius:13px;isolation:isolate;
+  clip-path:polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 34%),
+    linear-gradient(98deg, color-mix(in srgb,var(--gl-accent) 12%,var(--gl-ink-1)), var(--gl-ink-1) 70%);
+  border:1px solid var(--gl-edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), inset 0 -10px 22px rgba(0,0,0,.32);
+  filter:drop-shadow(0 12px 26px rgba(0,0,0,.4))}
+/* accent hairline tracing the cut corner */
+#gllg-auditor .gllg-party::after{content:"";position:absolute;top:5px;right:-3px;width:20px;height:1px;
+  transform:rotate(-45deg);transform-origin:right center;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--gl-accent) 80%,#fff));opacity:.7;z-index:2}
 #gllg-auditor .gp-id{flex:1;min-width:0}
 #gllg-auditor .gp-name{font-size:16px;font-weight:760;letter-spacing:.01em;line-height:1.1;
   background:linear-gradient(180deg,#fff,#cdd6e8);-webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #gllg-auditor .gp-meta{display:flex;gap:6px;margin-top:4px}
-#gllg-auditor .gp-pill{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;
-  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
-  padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.05);border:1px solid var(--hair)}
+/* technical-voice pills (glass-chip §3.2) */
+#gllg-auditor .gp-pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--gl-tech);font-size:9px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--gl-text-dim);
+  padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.05);border:1px solid var(--gl-hair)}
 #gllg-auditor .gp-pill i{font-size:8.5px;opacity:.8}
 
 #gllg-auditor .gp-tally{display:flex;gap:4px}
 #gllg-auditor .tally{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;
-  font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px;line-height:1;
-  border:1px solid transparent}
+  font-size:11px;font-weight:800;padding:3px 8px;line-height:1;border:1px solid transparent;
+  clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px)}
 #gllg-auditor .tally i{font-size:9.5px}
 
 #gllg-auditor .gp-actions{display:flex;gap:5px}
-#gllg-auditor .gllg-btn{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;cursor:pointer;
-  color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--hair);
-  transition:background .14s,color .14s,box-shadow .14s,transform .1s}
-#gllg-auditor .gllg-btn:hover{background:rgba(255,255,255,.11);color:var(--ink);box-shadow:0 0 12px var(--glowsoft)}
-#gllg-auditor .gllg-btn:active{transform:translateY(1px)}
+
+/* ---- icon buttons (notched chips, sheen-on-hover, press) ---- */
+#gllg-auditor .gllg-btn{position:relative;display:grid;place-items:center;width:30px;height:30px;overflow:hidden;cursor:pointer;
+  color:var(--gl-text-dim);background:rgba(255,255,255,.05);border:1px solid var(--gl-hair);
+  clip-path:polygon(5px 0,100% 0,100% 100%,0 100%,0 5px);
+  transition:background var(--gl-d-quick),color var(--gl-d-quick),box-shadow var(--gl-d-quick),transform .1s}
+/* top precision rule sweeps in on hover (§4.3 / §6.2) */
+#gllg-auditor .gllg-btn::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;transform:scaleX(0);transform-origin:left;
+  background:linear-gradient(90deg,transparent,var(--gl-accent) 24%,var(--gl-accent) 76%,transparent);
+  box-shadow:0 0 10px var(--gl-glow);transition:transform var(--gl-d-quick) var(--gl-ease)}
+#gllg-auditor .gllg-btn:hover{background:rgba(255,255,255,.11);color:var(--gl-text);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gl-accent) 50%,transparent)}
+#gllg-auditor .gllg-btn:hover::before{transform:scaleX(1)}
+#gllg-auditor .gllg-btn:active{transform:translateY(1px) scale(.97)}
 #gllg-auditor .gllg-btn i{font-size:13px}
 
 /* ===================== party wealth strip ===================== */
 #gllg-auditor .gllg-party-wealth{display:flex;align-items:center;gap:9px;padding:7px 12px;border-radius:10px;
-  background:rgba(255,255,255,.025);border:1px solid var(--hair)}
-#gllg-auditor .pw-lbl{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
+  background:rgba(255,255,255,.025);border:1px solid var(--gl-hair)}
+#gllg-auditor .pw-lbl{font-family:var(--gl-tech);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
 #gllg-auditor .pw-bar{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
 #gllg-auditor .pw-bar i{position:absolute;inset:0;width:0;border-radius:99px;
-  background:linear-gradient(90deg,var(--tint),color-mix(in srgb,var(--tint) 70%,#fff));
-  box-shadow:0 0 8px var(--glowsoft);transition:width .7s cubic-bezier(.34,1.1,.4,1)}
+  background:linear-gradient(90deg,var(--gl-accent),color-mix(in srgb,var(--gl-accent) 70%,#fff));
+  box-shadow:0 0 8px var(--gl-glow);transition:width .7s var(--gl-snap)}
 #gllg-auditor .pw-val{font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;white-space:nowrap}
-#gllg-auditor .pw-val em{color:var(--muted);font-style:normal;font-weight:600;font-size:10.5px}
+#gllg-auditor .pw-val em{color:var(--gl-text-dim);font-style:normal;font-weight:600;font-size:10.5px}
 #gllg-auditor .pw-delta{font-variant-numeric:tabular-nums;font-size:11px;font-weight:800;min-width:42px;text-align:right}
 
 #gllg-auditor .gllg-mode-note{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#c8b08a;line-height:1.4;
-  padding:7px 11px;border-radius:9px;background:var(--behindsoft);border:1px solid rgba(224,163,104,.22)}
+  padding:7px 11px;border-radius:9px;background:var(--behindsoft);border:1px solid color-mix(in srgb,var(--behind) 24%,transparent)}
 #gllg-auditor .gllg-mode-note i{color:var(--behind)}
 
 /* ============================ member cards ============================ */
 #gllg-auditor .gllg-members{display:flex;flex-direction:column;gap:9px}
 
-#gllg-auditor .gllg-member{position:relative;border-radius:12px;padding:11px 12px;isolation:isolate;
-  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.008));
-  border:1px solid var(--hair);
-  box-shadow:0 10px 26px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06);
-  transition:transform .18s cubic-bezier(.34,1.3,.4,1),box-shadow .2s,border-color .2s;
-  animation:gllg-cardin .42s both cubic-bezier(.34,1.4,.4,1);animation-delay:calc(var(--i,0)*55ms)}
-@keyframes gllg-cardin{0%{opacity:0;transform:translateY(8px) scale(.985)}100%{opacity:1;transform:none}}
-#gllg-auditor .gllg-member:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.09)}
-/* a thin status spine down the left edge, tinted by worst severity */
+/* each card sets --gl-accent from its worst severity → glass bloom + rule tint
+   to the member's status (the dynamic accent channel, §2.5). */
+#gllg-auditor .gllg-member{position:relative;padding:11px 12px;isolation:isolate;
+  clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0) 40%),
+    linear-gradient(98deg, color-mix(in srgb,var(--gl-accent) 7%,var(--gl-ink-1)), var(--gl-ink-1) 72%);
+  border:1px solid var(--gl-hair);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), inset 0 -10px 22px rgba(0,0,0,.3);
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.34));
+  transition:transform var(--gl-d-quick) var(--gl-snap),filter .2s,border-color .2s;
+  animation:gllg-cardin var(--gl-d-move) both var(--gl-snap);animation-delay:calc(var(--i,0)*50ms)}
+#gllg-auditor .gllg-member:hover{transform:translateY(-2px);
+  filter:drop-shadow(0 16px 32px rgba(0,0,0,.45)) drop-shadow(0 0 20px var(--gl-bloom));border-color:var(--gl-edge)}
+/* status spine down the left edge (3→4px on critical), tinted by severity */
 #gllg-auditor .gllg-member::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:99px;z-index:1;
-  background:var(--spine,var(--ok));box-shadow:0 0 10px var(--spineglow,var(--okglow));opacity:.9}
-#gllg-auditor .gllg-member.sev-critical{--spine:var(--crit);--spineglow:var(--critglow)}
-#gllg-auditor .gllg-member.sev-behind{--spine:var(--behind);--spineglow:var(--behindglow)}
-#gllg-auditor .gllg-member.sev-ontrack{--spine:var(--ok);--spineglow:var(--okglow)}
-#gllg-auditor .gllg-member.sev-ahead{--spine:var(--ahead);--spineglow:var(--aheadglow)}
+  background:var(--gl-accent);box-shadow:0 0 10px var(--gl-glow);opacity:.92}
+#gllg-auditor .gllg-member.sev-critical{--gl-accent:var(--crit)}
+#gllg-auditor .gllg-member.sev-critical::before{width:4px;animation:gllg-dread var(--gl-dread) ease-in-out infinite}
+#gllg-auditor .gllg-member.sev-behind{--gl-accent:var(--behind)}
+#gllg-auditor .gllg-member.sev-ontrack{--gl-accent:var(--ok)}
+#gllg-auditor .gllg-member.sev-ahead{--gl-accent:var(--ahead)}
 
 #gllg-auditor .gm-head{display:flex;align-items:center;gap:10px;margin-bottom:9px;padding-left:6px}
-#gllg-auditor .gm-portrait{position:relative;width:42px;height:42px;flex:none;padding:0;border-radius:10px;cursor:pointer;
-  border:1px solid var(--edge);overflow:visible;background:none;transition:transform .15s,box-shadow .15s}
-#gllg-auditor .gm-portrait img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:none;display:block;
-  background:#0a0e16}
-#gllg-auditor .gm-portrait:hover{transform:scale(1.05);box-shadow:0 0 14px var(--glowsoft)}
+/* button is an UNclipped wrapper (the status badge overhangs its corner) — the
+   notch + rim live on the inner img so the badge is never clipped away. */
+#gllg-auditor .gm-portrait{position:relative;width:42px;height:42px;flex:none;padding:0;cursor:pointer;
+  border:none;overflow:visible;background:none;
+  transition:transform .15s var(--gl-snap),filter .15s}
+#gllg-auditor .gm-portrait img{width:100%;height:100%;object-fit:cover;display:block;border:1px solid var(--gl-edge);
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);background:var(--gl-ink-1)}
+#gllg-auditor .gm-portrait:hover{transform:scale(1.05);filter:drop-shadow(0 0 12px var(--gl-glow))}
 #gllg-auditor .gm-status{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:99px;display:grid;place-items:center;
-  font-size:9px;color:#0a0e16;border:2px solid #0e1320;background:var(--spine,var(--ok));box-shadow:0 0 8px var(--spineglow,var(--okglow))}
+  font-size:9px;color:var(--gl-ink-1);border:2px solid #0e1320;background:var(--gl-accent);box-shadow:0 0 8px var(--gl-glow);z-index:2}
 #gllg-auditor .gm-id{min-width:0;flex:1}
 #gllg-auditor .gm-name{font-size:14px;font-weight:740;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#gllg-auditor .gm-level{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:1px}
+#gllg-auditor .gm-level{font-family:var(--gl-tech);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:1px}
 
-/* ---- fundamentals chips ---- */
+/* ---- fundamentals chips (glass-chip, notched, tactile) ---- */
 #gllg-auditor .gm-chips{display:flex;flex-wrap:wrap;gap:5px;padding-left:6px}
-#gllg-auditor .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 7px;border-radius:99px;
+#gllg-auditor .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 7px;
   font-size:10.5px;font-weight:700;letter-spacing:.01em;line-height:1;cursor:default;
-  border:1px solid var(--edge);background:rgba(255,255,255,.04);color:var(--ink);
-  transition:transform .12s cubic-bezier(.34,1.4,.5,1),box-shadow .15s,background .15s}
+  clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
+  border:1px solid var(--gl-edge);background:rgba(255,255,255,.04);color:var(--gl-text);
+  transition:transform .12s var(--gl-pop),box-shadow .15s,background .15s}
 #gllg-auditor .chip:hover{transform:translateY(-1px)}
 #gllg-auditor .chip i{font-size:9px;opacity:.95}
-#gllg-auditor .chip .chip-name{opacity:.9}
+#gllg-auditor .chip .chip-name{font-family:var(--gl-tech);letter-spacing:.04em;text-transform:uppercase;font-size:9px;opacity:.9}
 #gllg-auditor .chip .chip-val{font-variant-numeric:tabular-nums;font-weight:800;opacity:.95}
 #gllg-auditor .chip.soft{opacity:.82}
 /* severity tints for chips */
-#gllg-auditor .chip.sev-critical{color:#ffd9d4;background:var(--critsoft);border-color:rgba(224,88,79,.4);box-shadow:0 0 12px var(--critsoft)}
+#gllg-auditor .chip.sev-critical{color:#ffd9d4;background:var(--critsoft);border-color:color-mix(in srgb,var(--crit) 40%,transparent);box-shadow:0 0 12px var(--critsoft)}
 #gllg-auditor .chip.sev-critical i{color:var(--crit)}
-#gllg-auditor .chip.sev-behind{color:#f4dcc0;background:var(--behindsoft);border-color:rgba(224,163,104,.38)}
+#gllg-auditor .chip.sev-behind{color:#f4dcc0;background:var(--behindsoft);border-color:color-mix(in srgb,var(--behind) 38%,transparent)}
 #gllg-auditor .chip.sev-behind i{color:var(--behind)}
-#gllg-auditor .chip.sev-ontrack{color:#cfe9da;background:var(--oksoft);border-color:rgba(103,211,155,.28)}
+#gllg-auditor .chip.sev-ontrack{color:#cfe9da;background:var(--oksoft);border-color:color-mix(in srgb,var(--ok) 28%,transparent)}
 #gllg-auditor .chip.sev-ontrack i{color:var(--ok)}
-#gllg-auditor .chip.sev-ahead{color:#d2e8f3;background:var(--aheadsoft);border-color:rgba(111,184,216,.30)}
+#gllg-auditor .chip.sev-ahead{color:#d2e8f3;background:var(--aheadsoft);border-color:color-mix(in srgb,var(--ahead) 30%,transparent)}
 #gllg-auditor .chip.sev-ahead i{color:var(--ahead)}
-/* a critical chip gently pulses to draw the eye */
-#gllg-auditor .chip.sev-critical{animation:gllg-critpulse 2.8s ease-in-out infinite}
-@keyframes gllg-critpulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 14px var(--critsoft)}}
+/* a critical chip breathes to draw the eye */
+#gllg-auditor .chip.sev-critical{animation:gllg-dread var(--gl-dread) ease-in-out infinite}
 
-/* ---- missing list ---- */
+/* ---- missing list (hazard-tinted well) ---- */
 #gllg-auditor .gm-missing{list-style:none;margin:9px 0 0;padding:8px 10px 8px 6px;display:flex;flex-direction:column;gap:4px;
-  border-radius:9px;background:rgba(224,88,79,.05);border:1px solid rgba(224,88,79,.16)}
+  border-radius:9px;background:color-mix(in srgb,var(--gl-hazard) 5%,transparent);border:1px solid color-mix(in srgb,var(--gl-hazard) 16%,transparent)}
 #gllg-auditor .gm-missing li{display:flex;align-items:center;gap:7px;font-size:11px;color:#f0cdc8;line-height:1.3}
-#gllg-auditor .gm-missing li i{font-size:8px;color:var(--crit)}
+#gllg-auditor .gm-missing li i{font-size:8px;color:var(--gl-hazard)}
 
-/* ---- per-PC wealth ---- */
+/* ---- per-PC wealth — an INDEPENDENT readout, its bar coloured by wealth
+        severity, not the card's overall (fundamentals-driven) status. ---- */
 #gllg-auditor .gm-wealth{display:flex;align-items:center;gap:8px;margin-top:9px;padding:6px 9px 6px 6px;border-radius:9px;
-  background:rgba(255,255,255,.02)}
-/* wealth-drift is an INDEPENDENT readout — its bar colours by wealth severity,
-   not the card's overall (fundamentals-driven) status. */
-#gllg-auditor .gm-wealth.sev-critical,#gllg-auditor .gm-wealth.sev-behind{--spine:var(--behind);--spineglow:var(--behindglow)}
-#gllg-auditor .gm-wealth.sev-ontrack{--spine:var(--ok);--spineglow:var(--okglow)}
-#gllg-auditor .gm-wealth.sev-ahead{--spine:var(--ahead);--spineglow:var(--aheadglow)}
-#gllg-auditor .gw-lbl{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
+  background:rgba(255,255,255,.02);
+  --wsp:var(--ok); --wglow:var(--okglow)}
+#gllg-auditor .gm-wealth.sev-critical,#gllg-auditor .gm-wealth.sev-behind{--wsp:var(--behind);--wglow:var(--behindglow)}
+#gllg-auditor .gm-wealth.sev-ontrack{--wsp:var(--ok);--wglow:var(--okglow)}
+#gllg-auditor .gm-wealth.sev-ahead{--wsp:var(--ahead);--wglow:var(--aheadglow)}
+#gllg-auditor .gw-lbl{font-family:var(--gl-tech);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700;white-space:nowrap}
 #gllg-auditor .gw-bar{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
 #gllg-auditor .gw-bar i{position:absolute;inset:0;width:0;border-radius:99px;
-  background:linear-gradient(90deg,var(--spine,var(--ok)),color-mix(in srgb,var(--spine,var(--ok)) 65%,#fff));
-  box-shadow:0 0 7px var(--spineglow,var(--okglow));transition:width .7s cubic-bezier(.34,1.1,.4,1)}
+  background:linear-gradient(90deg,var(--wsp),color-mix(in srgb,var(--wsp) 65%,#fff));
+  box-shadow:0 0 7px var(--wglow);transition:width .7s var(--gl-snap)}
 #gllg-auditor .gw-bar i.over{background:linear-gradient(90deg,var(--ahead),#bfe6f5)}
 #gllg-auditor .gw-val{font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;white-space:nowrap}
-#gllg-auditor .gw-val em{color:var(--muted);font-style:normal;font-weight:600;font-size:9.5px}
+#gllg-auditor .gw-val em{color:var(--gl-text-dim);font-style:normal;font-weight:600;font-size:9.5px}
 #gllg-auditor .gw-delta{font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:800;min-width:40px;text-align:right}
 
 /* ---- severity text colour for delta/labels ---- */
@@ -188,310 +304,441 @@
 #gllg-auditor .sev-behind .gw-delta,#gllg-auditor .pw-delta.sev-behind{color:var(--behind)}
 #gllg-auditor .sev-ontrack .gw-delta,#gllg-auditor .pw-delta.sev-ontrack{color:var(--ok)}
 #gllg-auditor .sev-ahead .gw-delta,#gllg-auditor .pw-delta.sev-ahead{color:var(--ahead)}
-#gllg-auditor .tally.sev-critical{color:var(--crit);background:var(--critsoft);border-color:rgba(224,88,79,.35)}
-#gllg-auditor .tally.sev-behind{color:var(--behind);background:var(--behindsoft);border-color:rgba(224,163,104,.32)}
-#gllg-auditor .tally.sev-ontrack{color:var(--ok);background:var(--oksoft);border-color:rgba(103,211,155,.26)}
-#gllg-auditor .tally.sev-ahead{color:var(--ahead);background:var(--aheadsoft);border-color:rgba(111,184,216,.26)}
+#gllg-auditor .tally.sev-critical{color:var(--crit);background:var(--critsoft);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
+#gllg-auditor .tally.sev-behind{color:var(--behind);background:var(--behindsoft);border-color:color-mix(in srgb,var(--behind) 32%,transparent)}
+#gllg-auditor .tally.sev-ontrack{color:var(--ok);background:var(--oksoft);border-color:color-mix(in srgb,var(--ok) 26%,transparent)}
+#gllg-auditor .tally.sev-ahead{color:var(--ahead);background:var(--aheadsoft);border-color:color-mix(in srgb,var(--ahead) 26%,transparent)}
 
 /* ============================ footer ============================ */
-#gllg-auditor .gllg-foot{font-size:9px;line-height:1.5;color:var(--faint);text-align:center;padding:2px 6px 0;opacity:.85}
-
-@media (prefers-reduced-motion: reduce){
-  #gllg-auditor *{animation:none !important;transition:none !important}
-}
+/* a press-sheet footer: CMYK registration chips + serial + data strip on one
+   line, the estimate note below it (§4.2 / §4.5) */
+#gllg-auditor .gllg-foot{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;
+  padding:5px 6px 0;opacity:.85}
+#gllg-auditor .gllg-foot-note{flex:1 1 100%;text-align:center;font-size:9px;line-height:1.5;color:var(--faint)}
 
 /* ============================================================
-   Review chat card + hand-out + generate dialog.
-   These live OUTSIDE the auditor window, so the Arcane Glass
-   tokens are re-declared on their own roots.
+   4 · Review / done / progress chat cards  (.gllg-card)
+   These live in the chat log, outside any app window.
    ============================================================ */
-.gllg-card,.gllg-handout,.application.gllg-generate{
-  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
-  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
-  --tint:#6b86d6; --glow:rgba(120,150,225,.5); --glowsoft:rgba(120,150,225,.16);
-  --crit:#e0584f; --behind:#e0a368; --ok:#67d39b; --ahead:#6fb8d8;
-  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
-}
 
-/* ---- let the card take over the whole chat message (no nested box) ---- */
-/* Strip the default light message frame, but KEEP the header (sender, timestamp,
-   delete) — just recolour it to sit cleanly above the glass card. */
+/* ---- let the card own the whole chat message (strip the light frame, keep
+        the header: sender, timestamp, delete — recoloured to dark glass) ---- */
 .chat-message:has(.gllg-card),
 .chat-message.whisper:has(.gllg-card){
-  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c; --crit:#e0584f;
   padding:0 !important; border:none !important; background:none !important; box-shadow:none !important;
 }
 .chat-message:has(.gllg-card) .message-header{
-  background:none; border:none; padding:2px 4px 6px; font-family:"Oxanium","Segoe UI",system-ui,sans-serif}
-.chat-message:has(.gllg-card) .message-sender{color:var(--muted); font-weight:700}
+  background:none; border:none; padding:2px 4px 6px; font-family:var(--gl-tech);
+  letter-spacing:.06em}
+.chat-message:has(.gllg-card) .message-sender{color:var(--gl-text-dim); font-weight:700}
 .chat-message:has(.gllg-card) .whisper-to{color:var(--faint); font-style:italic}
 .chat-message:has(.gllg-card) .message-metadata,
 .chat-message:has(.gllg-card) .message-timestamp{color:var(--faint)}
 .chat-message:has(.gllg-card) .message-metadata a,
 .chat-message:has(.gllg-card) .message-delete,
-.chat-message:has(.gllg-card) .message-header .header-control{color:var(--muted)}
+.chat-message:has(.gllg-card) .message-header .header-control{color:var(--gl-text-dim)}
 .chat-message:has(.gllg-card) .message-delete:hover,
-.chat-message:has(.gllg-card) .message-header .header-control:hover{color:var(--crit)}
+.chat-message:has(.gllg-card) .message-header .header-control:hover{color:var(--gl-hazard)}
 .chat-message:has(.gllg-card) .message-content{padding:0; margin:0}
 
-/* ---- the review card body ---- */
+/* ---- the card body: full glass-panel material + signature chamfer ---- */
 .gllg-card{
-  font:13px/1.45 var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
-  border:1px solid var(--edge); border-radius:13px; overflow:hidden; isolation:isolate;
+  position:relative;isolation:isolate;
+  font:13px/1.45 var(--gl-display); color:var(--gl-text); -webkit-font-smoothing:antialiased;
+  border:1px solid var(--gl-edge); overflow:hidden;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
   background:
-    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 24%),
-    linear-gradient(160deg, #161d2c, #0a0e16 80%);
-  box-shadow:0 18px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), 0 0 40px var(--glowsoft);
-  animation:gllg-cardin .4s both cubic-bezier(.34,1.4,.4,1);
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 34%),
+    linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.20)),
+    linear-gradient(98deg, color-mix(in srgb, var(--gl-accent) 13%, var(--gl-ink-1)), var(--gl-ink-1) 64%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -12px 28px rgba(0,0,0,.38);
+  filter:drop-shadow(0 18px 44px rgba(0,0,0,.5)) drop-shadow(0 0 30px var(--gl-bloom));
+  animation:gllg-cardin var(--gl-d-reveal) both var(--gl-ease);
 }
 .gllg-card *{box-sizing:border-box}
-.gllg-card-head{padding:11px 13px 9px;border-bottom:1px solid var(--hair);
+/* inner radial light catch (§3.1) */
+.gllg-card::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(70% 150% at 50% -40%, color-mix(in srgb,var(--gl-accent) 50%,transparent), transparent 66%);
+  opacity:.2}
+/* accent hairline tracing the cut corner */
+.gllg-card::after{content:"";position:absolute;top:5px;right:-3px;width:22px;height:1px;z-index:3;
+  transform:rotate(-45deg);transform-origin:right center;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--gl-accent) 85%,#fff));opacity:.75}
+.gllg-card>*{position:relative;z-index:1}
+
+.gllg-card-head{position:relative;padding:11px 13px 9px;border-bottom:1px solid var(--gl-hair);
   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0))}
+/* a precision rule of light underlines the head (§4.3) */
+.gllg-card-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gl-accent) 24%,var(--gl-accent) 76%,transparent);
+  box-shadow:0 0 14px var(--gl-glow);opacity:.5}
 .gllg-card-title{font-size:15px;font-weight:760;letter-spacing:.01em;display:flex;align-items:center;gap:8px;
   background:linear-gradient(180deg,#fff,#cdd6e8);-webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent}
-.gllg-card-title i{-webkit-text-fill-color:initial;color:var(--tint);filter:drop-shadow(0 0 10px var(--glowsoft))}
-.gllg-card-sub{margin-top:3px;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
-  font-weight:700;font-variant-numeric:tabular-nums}
+.gllg-card-title i{-webkit-text-fill-color:initial;color:var(--gl-accent);filter:drop-shadow(0 0 10px var(--gl-glow))}
+/* kicker sub-string in the technical voice, led by a tick mark (§4.2) */
+.gllg-card-sub{display:flex;align-items:center;gap:6px;margin-top:4px;font-family:var(--gl-tech);font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700;font-variant-numeric:tabular-nums}
+.gllg-card-sub::before{content:"";flex:0 0 auto;width:13px;height:2px;background:var(--gl-accent);
+  box-shadow:0 0 8px var(--gl-glow)}
 
-/* shopkeeper persona (shop proposals) */
-.gllg-card .gllg-keeper{margin:9px 11px 0;padding:8px 11px;border-radius:9px;border:1px solid var(--hair);
-  background:rgba(202,162,74,.07);font-size:11.5px;color:#e7dcc2;line-height:1.4}
-.gllg-card .gllg-keeper>i{color:#caa24a;margin-right:4px}
-.gllg-card .gllg-keeper-shop{color:var(--muted);font-weight:400}
+/* shopkeeper persona (shop proposals) — signal-amber provenance card */
+.gllg-card .gllg-keeper{margin:9px 11px 0;padding:8px 11px;border-radius:9px;
+  border:1px solid color-mix(in srgb,var(--gl-signal) 20%,var(--gl-hair));
+  background:color-mix(in srgb,var(--gl-signal) 6%,transparent);font-size:11.5px;color:#e7dcc2;line-height:1.4}
+.gllg-card .gllg-keeper>i{color:var(--gl-signal);margin-right:4px}
+.gllg-card .gllg-keeper-shop{color:var(--gl-text-dim);font-weight:400}
 .gllg-card .gllg-keeper-greet{margin-top:4px;font-style:italic;color:#d8c9a6}
-.gllg-card .gllg-keeper-greet i{color:#caa24a;font-size:9px;margin-right:4px}
+.gllg-card .gllg-keeper-greet i{color:var(--gl-signal);font-size:9px;margin-right:4px}
 .gllg-card .gllg-keeper-bio{margin-top:4px;color:#c8d2e6}
 
 /* reasoning disclosure */
-.gllg-card .gllg-why{margin:9px 11px 0;border-radius:9px;border:1px solid var(--hair);
+.gllg-card .gllg-why{margin:9px 11px 0;border-radius:9px;border:1px solid var(--gl-hair);
   background:rgba(255,255,255,.025);overflow:hidden}
-.gllg-card .gllg-why summary{cursor:pointer;list-style:none;padding:7px 10px;font-size:9.5px;font-weight:700;
-  letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.gllg-card .gllg-why summary{cursor:pointer;list-style:none;padding:7px 10px;font-family:var(--gl-tech);font-size:9px;font-weight:700;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--gl-text-dim)}
 .gllg-card .gllg-why summary::-webkit-details-marker{display:none}
 .gllg-card .gllg-why ul{margin:0;padding:2px 14px 9px 24px;display:flex;flex-direction:column;gap:3px}
 .gllg-card .gllg-why li{font-size:11px;color:#c8d2e6;line-height:1.35}
 
 /* parcels + items */
 .gllg-parcels{display:flex;flex-direction:column;gap:8px;padding:10px 11px}
-.gllg-parcel{border-radius:10px;border:1px solid var(--hair);background:rgba(255,255,255,.02);overflow:hidden}
+.gllg-parcel{border:1px solid var(--gl-hair);background:rgba(255,255,255,.02);overflow:hidden;
+  clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)}
+/* parcel head: triangle bullet + technical voice */
 .gllg-parcel-head{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;
-  font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
-  border-bottom:1px solid var(--hair);background:rgba(255,255,255,.025)}
-.gllg-parcel-tot{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:800}
+  font-family:var(--gl-tech);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gl-text-dim);
+  border-bottom:1px solid var(--gl-hair);background:rgba(255,255,255,.025)}
+.gllg-parcel-head::before{content:"▶";color:var(--gl-accent);font-size:7px;margin-right:6px;filter:drop-shadow(0 0 5px var(--gl-glow))}
+.gllg-parcel-tot{font-family:var(--gl-display);font-variant-numeric:tabular-nums;color:var(--gl-text);font-weight:800}
 .gllg-items{display:flex;flex-direction:column}
 .gllg-card .gllg-empty{padding:10px;text-align:center;color:var(--faint);font-size:11px}
 
-.gllg-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid var(--hair);
-  transition:background .14s}
+/* item rows — cascade-stagger in along the diagonal (§6.2) */
+.gllg-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid var(--gl-hair);
+  transition:background var(--gl-d-quick);animation:gllg-rise var(--gl-d-move) both var(--gl-ease)}
+.gllg-item:nth-child(1){animation-delay:30ms}
+.gllg-item:nth-child(2){animation-delay:70ms}
+.gllg-item:nth-child(3){animation-delay:110ms}
+.gllg-item:nth-child(4){animation-delay:150ms}
+.gllg-item:nth-child(n+5){animation-delay:190ms}
 .gllg-item:last-child{border-bottom:none}
-.gllg-item:hover{background:rgba(255,255,255,.04)}
-.gllg-item-img{width:34px;height:34px;flex:none;border-radius:8px;object-fit:cover;border:1px solid var(--edge);
-  background:#0a0e16}
+.gllg-item:hover{background:rgba(255,255,255,.045)}
+.gllg-item-img{width:34px;height:34px;flex:none;object-fit:cover;border:1px solid var(--gl-edge);background:var(--gl-ink-1);
+  clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
 .gllg-item-main{flex:1;min-width:0}
 .gllg-item-name{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.2}
-.gllg-item-meta{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px}
-.gllg-item-meta .gllg-for{color:var(--tint);font-weight:700;margin-left:4px}
+.gllg-item-meta{font-size:10px;color:var(--gl-text-dim);font-variant-numeric:tabular-nums;margin-top:2px}
+.gllg-item-meta .gllg-for{color:var(--gl-accent);font-weight:700;margin-left:4px}
 .gllg-item-reason{font-size:10px;color:var(--faint);font-style:italic;margin-top:2px;line-height:1.3}
+/* etched-rune sub-string (mystery violet) */
+.gllg-item-runes{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:10.5px;color:var(--gl-violet);font-weight:700}
+.gllg-item-runes i{font-size:9px;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--gl-violet) 50%,transparent))}
 
-/* tier badge */
-.gllg-tier{font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-  padding:2px 7px;border-radius:99px;line-height:1;border:1px solid var(--edge);color:var(--muted)}
-.gllg-tier.sev-rune{color:#d2dcff;background:rgba(107,134,214,.16);border-color:rgba(107,134,214,.4)}
-.gllg-tier.sev-core{color:#cfe9da;background:rgba(103,211,155,.13);border-color:rgba(103,211,155,.28)}
-.gllg-tier.sev-unusual{color:#f4dcc0;background:rgba(224,163,104,.15);border-color:rgba(224,163,104,.36)}
-.gllg-tier.sev-consumable{color:#d2e8f3;background:rgba(111,184,216,.13);border-color:rgba(111,184,216,.3)}
-.gllg-tier.sev-heirloom{color:#f3e1b0;background:rgba(224,184,104,.16);border-color:rgba(224,184,104,.45)}
+/* tier badge — notched glass-chip, accent set per tier so the glow tints */
+.gllg-tier{font-family:var(--gl-tech);font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;line-height:1;border:1px solid var(--gl-edge);color:var(--gl-text-dim);
+  clip-path:polygon(3px 0,100% 0,100% 100%,0 100%,0 3px)}
+.gllg-tier.sev-rune{color:#d2dcff;background:color-mix(in srgb,#6b86d6 16%,transparent);border-color:color-mix(in srgb,#6b86d6 40%,transparent)}
+.gllg-tier.sev-core{color:#cfe9da;background:color-mix(in srgb,var(--gl-good) 13%,transparent);border-color:color-mix(in srgb,var(--gl-good) 28%,transparent)}
+.gllg-tier.sev-unusual{color:#f4dcc0;background:var(--behindsoft);border-color:color-mix(in srgb,var(--behind) 36%,transparent)}
+.gllg-tier.sev-consumable{color:#d2e8f3;background:var(--aheadsoft);border-color:color-mix(in srgb,var(--ahead) 30%,transparent)}
+.gllg-tier.sev-heirloom{color:#f3e1b0;background:color-mix(in srgb,var(--gl-signal) 16%,transparent);border-color:color-mix(in srgb,var(--gl-signal) 45%,transparent)}
 
 /* LLM flavor / provenance */
 .gllg-flavorname{font-size:11px;font-weight:700;color:#cdb6ef;font-style:italic;letter-spacing:.01em;margin-top:1px}
-.gllg-item-flavor{display:flex;gap:5px;margin-top:3px;font-size:11px;line-height:1.4;color:var(--ink);
+.gllg-item-flavor{display:flex;gap:5px;margin-top:3px;font-size:11px;line-height:1.4;color:var(--gl-text);
   font-style:italic;opacity:.92}
-.gllg-item-flavor i{color:#b59be0;font-size:9px;margin-top:3px;flex:0 0 auto}
-.gllg-item-prov{margin-top:2px;font-size:10px;color:var(--muted);line-height:1.35}
+.gllg-item-flavor i{color:var(--gl-violet);font-size:9px;margin-top:3px;flex:0 0 auto}
+.gllg-item-prov{margin-top:2px;font-size:10px;color:var(--gl-text-dim);line-height:1.35}
 
-/* heirloom awakening rows */
-.gllg-item.gllg-is-heir{background:linear-gradient(90deg,rgba(224,184,104,.08),transparent 70%)}
+/* heirloom awakening rows — signal-amber wash + glyph */
+.gllg-item.gllg-is-heir{background:linear-gradient(90deg,color-mix(in srgb,var(--gl-signal) 9%,transparent),transparent 70%)}
 .gllg-item-heir{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:10.5px;font-weight:700;
   color:#e8c987;font-style:italic}
-.gllg-item-heir i{font-size:10px;filter:drop-shadow(0 0 4px rgba(224,184,104,.5))}
+.gllg-item-heir i{font-size:10px;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--gl-signal) 50%,transparent))}
 
 .gllg-item-ctl{display:flex;gap:4px;flex:none}
-.gllg-mini{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;cursor:pointer;
-  color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--hair);
-  transition:background .14s,color .14s,box-shadow .14s,transform .1s}
-.gllg-mini:hover{background:rgba(255,255,255,.12);color:var(--ink);box-shadow:0 0 10px var(--glowsoft)}
-.gllg-mini:active{transform:translateY(1px)}
+.gllg-mini{position:relative;display:grid;place-items:center;width:26px;height:26px;cursor:pointer;overflow:hidden;
+  color:var(--gl-text-dim);background:rgba(255,255,255,.05);border:1px solid var(--gl-hair);
+  clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
+  transition:background var(--gl-d-quick),color var(--gl-d-quick),box-shadow var(--gl-d-quick),transform .1s}
+.gllg-mini::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;transform:scaleX(0);transform-origin:left;
+  background:linear-gradient(90deg,transparent,var(--gl-accent),transparent);box-shadow:0 0 8px var(--gl-glow);
+  transition:transform var(--gl-d-quick) var(--gl-ease)}
+.gllg-mini:hover{background:rgba(255,255,255,.12);color:var(--gl-text);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gl-accent) 50%,transparent)}
+.gllg-mini:hover::before{transform:scaleX(1)}
+.gllg-mini:active{transform:translateY(1px) scale(.97)}
 .gllg-mini i{font-size:11px}
 
+/* coins — signal-amber "treasure" decal (the premium accent, §2.4) */
 .gllg-coins-row{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:11.5px;font-weight:700;
-  color:#f0d9a6;font-variant-numeric:tabular-nums;border-top:1px solid var(--hair);background:rgba(224,163,104,.05)}
-.gllg-coins-row i{color:var(--behind)}
+  color:var(--gl-signal-hot);font-variant-numeric:tabular-nums;
+  border-top:1px solid color-mix(in srgb,var(--gl-signal) 22%,var(--gl-hair));
+  background:color-mix(in srgb,var(--gl-signal) 6%,transparent)}
+.gllg-coins-row i{color:var(--gl-signal);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--gl-signal) 45%,transparent))}
 
 /* destination routing */
 .gllg-routing{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 11px;
-  border-top:1px solid var(--hair);font-size:11px;background:rgba(107,134,214,.05)}
-.gllg-routing>i{color:var(--tint);font-size:12px}
-.gllg-route-lbl{color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+  border-top:1px solid var(--gl-hair);font-size:11px;background:color-mix(in srgb,var(--gl-accent) 5%,transparent)}
+.gllg-routing>i{color:var(--gl-accent);font-size:12px}
+.gllg-route-lbl{font-family:var(--gl-tech);color:var(--gl-text-dim);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:9px}
 .gllg-route-sel{flex:1 1 120px;min-width:110px;padding:5px 8px;border-radius:8px;font:inherit;font-size:11.5px;
-  color:var(--ink);background:#101622;border:1px solid var(--edge);cursor:pointer;
-  transition:border-color .14s,box-shadow .15s}
-.gllg-route-sel:hover{border-color:var(--tint)}
-.gllg-route-sel:focus{outline:none;border-color:var(--tint);box-shadow:0 0 10px var(--glowsoft)}
-.gllg-route-sel option,.gllg-route-sel optgroup{background:#161d2c;color:var(--ink)}
+  color:var(--gl-text);background:var(--gl-ink-2);border:1px solid var(--gl-edge);cursor:pointer;
+  transition:border-color var(--gl-d-quick),box-shadow .15s}
+.gllg-route-sel:hover{border-color:var(--gl-accent)}
+.gllg-route-sel:focus{outline:none;border-color:var(--gl-accent);box-shadow:0 0 0 3px var(--gl-bloom)}
+.gllg-route-sel option,.gllg-route-sel optgroup{background:var(--gl-ink-3);color:var(--gl-text)}
 .gllg-route-warn{color:var(--behind);font-weight:700}
 
-/* footer actions — wrap to a second row in a narrow chat sidebar instead of
-   spilling past the card edge. Buttons grow to fill a row but keep a sensible
-   minimum so their icon+label never gets clipped. */
-.gllg-card-actions{display:flex;flex-wrap:wrap;gap:7px;padding:10px 11px 12px;border-top:1px solid var(--hair)}
-.gllg-card .gllg-btn{flex:1 1 auto;min-width:84px;max-width:100%;display:inline-flex;align-items:center;
+/* footer actions — wrap to a second row in a narrow chat sidebar. Buttons grow
+   to fill a row but keep a sensible minimum so icon+label never clips. */
+.gllg-card-actions{display:flex;flex-wrap:wrap;gap:7px;padding:10px 11px 12px;border-top:1px solid var(--gl-hair)}
+.gllg-card .gllg-btn{position:relative;flex:1 1 auto;min-width:84px;max-width:100%;display:inline-flex;align-items:center;
   justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  padding:8px 9px;border-radius:9px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
-  color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--edge);
-  transition:background .14s,box-shadow .15s,transform .1s}
-.gllg-card .gllg-btn:hover{background:rgba(255,255,255,.12);box-shadow:0 0 14px var(--glowsoft)}
-.gllg-card .gllg-btn:active{transform:translateY(1px)}
+  padding:8px 9px;cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+  color:var(--gl-text);background:rgba(255,255,255,.06);border:1px solid var(--gl-edge);
+  clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px);
+  transition:background var(--gl-d-quick),box-shadow .15s,transform .1s}
+.gllg-card .gllg-btn::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;transform:scaleX(0);transform-origin:left;
+  background:linear-gradient(90deg,transparent,var(--gl-accent) 24%,var(--gl-accent) 76%,transparent);
+  box-shadow:0 0 10px var(--gl-glow);transition:transform var(--gl-d-quick) var(--gl-ease)}
+.gllg-card .gllg-btn:hover{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gl-accent) 45%,transparent)}
+.gllg-card .gllg-btn:hover::before{transform:scaleX(1)}
+.gllg-card .gllg-btn:active{transform:translateY(1px) scale(.98)}
 .gllg-card .gllg-btn[disabled]{opacity:.5;pointer-events:none}
+/* approve = the commit action → signal-amber-leaning success fill + flash */
 .gllg-card .gllg-btn.gllg-go{color:#0a130d;background:linear-gradient(180deg,#8ee6b5,#5cc88c);border-color:transparent;
-  box-shadow:0 4px 16px rgba(103,211,155,.3)}
-.gllg-card .gllg-btn.gllg-go:hover{box-shadow:0 6px 22px rgba(103,211,155,.45)}
-.gllg-card .gllg-btn.gllg-ghost{flex:1 1 auto;min-width:72px;color:var(--muted);background:transparent}
+  box-shadow:0 4px 16px color-mix(in srgb,var(--gl-good) 30%,transparent)}
+.gllg-card .gllg-btn.gllg-go:hover{box-shadow:0 6px 22px color-mix(in srgb,var(--gl-good) 45%,transparent)}
+.gllg-card .gllg-btn.gllg-go::before{background:linear-gradient(90deg,transparent,var(--gl-signal-hot),transparent)}
+.gllg-card .gllg-btn.gllg-ghost{flex:1 1 auto;min-width:72px;color:var(--gl-text-dim);background:transparent}
 
-/* materialized + error states */
-.gllg-card.gllg-done .gllg-card-title i{color:var(--ok)}
+/* materialized state — success accent + a COMPLETED-style stamp on the mark */
+.gllg-card.gllg-done{--gl-accent:var(--gl-good)}
+.gllg-card.gllg-done .gllg-card-title i{color:var(--gl-good);animation:gllg-stamp var(--gl-d-splash) both var(--gl-pop)}
 .gllg-created{list-style:none;margin:0;padding:10px 13px;display:flex;flex-direction:column;gap:5px}
 .gllg-created li{font-size:12px;display:flex;align-items:center;gap:8px}
-.gllg-mini-tag{font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
-  padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--hair)}
+.gllg-mini-tag{font-family:var(--gl-tech);font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gl-text-dim);
+  padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--gl-hair)}
+/* an error result re-tints the whole card to hazard (it still carries .gllg-done) */
+.gllg-card:has(.gllg-err){--gl-accent:var(--gl-hazard)}
+.gllg-card:has(.gllg-err) .gllg-card-title i{color:var(--gl-hazard)}
 .gllg-card .gllg-err{padding:10px 13px;color:#f0cdc8;font-size:12px}
+
+/* progress "working…" card — accent stays at the default tint, spinner glows */
+.gllg-card.gllg-progress .gllg-card-title i{color:var(--gl-accent)}
+.gllg-progress-body{display:flex;align-items:center;gap:10px;padding:11px 13px 13px}
+.gllg-progress-body .gllg-spinner i{color:var(--gl-accent);font-size:16px;filter:drop-shadow(0 0 10px var(--gl-glow))}
+.gllg-progress-text{font-size:11.5px;color:var(--gl-text-dim);line-height:1.4}
 
 /* ---- LLM flavor folded into an item's own description (shows on the sheet) ---- */
 .gllg-flavor-block{margin-bottom:.4em}
 .gllg-flavor-block p{margin:.2em 0}
 
-/* ---- plain chat hand-out (quest reward target) ---- */
-.gllg-handout{font:13px/1.45 var(--font);color:var(--ink)}
-.gllg-handout h3{margin:0 0 6px;font-weight:760}
-.gllg-handout ul{margin:0;padding-left:18px}
-.gllg-handout .gllg-gp{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
-.gllg-handout .gllg-coins{color:#f0d9a6;font-weight:700;margin:6px 0 0}
-.gllg-handout .gllg-hint{color:var(--faint);font-size:10px;font-style:italic;margin:6px 0 0}
-
-/* ---- generate dialog ---- */
-/* recolour the DialogV2 frame to dark glass (default is light parchment, which
-   leaves our light text/controls unreadable) */
-.application.gllg-generate{
-  border:1px solid var(--edge); border-radius:13px; overflow:hidden;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 22%),
-    linear-gradient(160deg, #161d2c, #0a0e16 80%);
-  box-shadow:0 24px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.09), 0 0 50px var(--glowsoft);
-  backdrop-filter:blur(18px) saturate(1.12);
-}
-.application.gllg-generate .window-header{
-  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));
-  border-bottom:1px solid var(--hair)}
-.application.gllg-generate .window-header .window-title{font-family:var(--font);font-weight:700;color:var(--ink)}
-.application.gllg-generate .window-content{font-family:var(--font);color:var(--ink);background:none}
-.application.gllg-generate .dialog-buttons,
-.application.gllg-generate .form-footer{background:none}
-/* style only the footer action buttons — NOT window-control buttons, which carry
-   their Font Awesome icon class directly on the <button> (overriding their
-   font-family turns the glyph into a tofu square). */
-.application.gllg-generate button:not(.header-control):not([class*="fa-"]){
-  font-family:var(--font);color:var(--ink);
-  background:rgba(255,255,255,.06);border:1px solid var(--edge)}
-.application.gllg-generate button:not(.header-control):not([class*="fa-"]):hover{
-  background:rgba(255,255,255,.12);box-shadow:0 0 12px var(--glowsoft)}
-
-/* fills the dialog (which now carries an explicit, resizable width) and shrinks
-   with it — no fixed floor that would force horizontal overflow when narrowed. */
-.gllg-genform{display:flex;flex-direction:column;gap:9px;padding:4px 2px;width:100%;min-width:0;font-family:var(--font)}
-.gllg-genform select,.gllg-genform input,.gllg-genform textarea{min-width:0;max-width:100%}
-.gllg-genform .gllg-field{display:flex;flex-direction:column;gap:4px}
-.gllg-genform .gllg-row{display:flex;gap:9px}
-.gllg-genform .gllg-row .gllg-field{flex:1}
-.gllg-genform label{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
-.gllg-genform .gllg-dim{color:var(--faint);letter-spacing:0;text-transform:none;font-weight:600;font-size:9.5px}
-.gllg-genform select,.gllg-genform input,.gllg-genform textarea{font:inherit;font-size:13px;color:var(--ink);
-  padding:6px 9px;border-radius:8px;border:1px solid var(--edge);background:#101622}
-.gllg-genform textarea{resize:vertical;min-height:42px;line-height:1.4;font-family:var(--font)}
-.gllg-genform select:focus,.gllg-genform input:focus,.gllg-genform textarea:focus{outline:none;border-color:var(--tint);box-shadow:0 0 0 3px var(--glowsoft)}
-/* the native option popup ignores the select's translucent bg — force dark */
-.gllg-genform select option,.gllg-genform select optgroup{background:#161d2c;color:var(--ink)}
-.gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}
-
-/* ---- LLM "working…" progress card (whispered while the sidecar runs) ---- */
-.gllg-card.gllg-progress .gllg-card-title i{color:var(--tint)}
-.gllg-progress-body{display:flex;align-items:center;gap:10px;padding:11px 13px 13px}
-.gllg-progress-body .gllg-spinner i{color:var(--tint);font-size:16px;filter:drop-shadow(0 0 10px var(--glowsoft))}
-.gllg-progress-text{font-size:11.5px;color:var(--muted);line-height:1.4}
-
 /* ---- GM-only icon-generation prompt folded into an item description ---- */
 .gllg-icon-note{margin:.5em 0 .2em;padding:7px 10px;border-radius:8px;
-  border:1px solid rgba(155,179,224,.28);background:rgba(107,134,214,.08)}
+  border:1px solid color-mix(in srgb,var(--gl-accent,#6b86d6) 28%,transparent);
+  background:color-mix(in srgb,var(--gl-accent,#6b86d6) 8%,transparent)}
 .gllg-icon-note .gllg-icon-note-head{margin:0 0 .25em;font-size:.92em;color:#9bb3e0}
 .gllg-icon-note .gllg-icon-note-head i{margin-right:.35em}
 .gllg-icon-note .gllg-icon-note-body{margin:0;font-size:.92em;line-height:1.4;font-style:italic;opacity:.92}
 
-/* ---- roomy multi-line campaign-context field in the settings window ---- */
-textarea.gllg-settings-textarea{width:100%;min-height:7.5em;resize:vertical;
-  font-family:inherit;line-height:1.45;padding:6px 8px}
+/* ============================================================
+   5 · Plain chat hand-out  (.gllg-handout)
+   ============================================================ */
+.gllg-handout{font:13px/1.45 var(--gl-display);color:var(--gl-text)}
+.gllg-handout h3{margin:0 0 6px;font-weight:760;letter-spacing:.01em}
+.gllg-handout ul{margin:0;padding-left:18px}
+.gllg-handout .gllg-gp{color:var(--gl-text-dim);font-variant-numeric:tabular-nums;font-size:11px}
+.gllg-handout .gllg-coins{color:var(--gl-signal-hot);font-weight:700;margin:6px 0 0}
+.gllg-handout .gllg-hint{color:var(--faint);font-size:10px;font-style:italic;margin:6px 0 0}
 
-/* ---- LLM on/off toggle in the generate dialog ---- */
+/* ============================================================
+   6 · Generate + Workshop dialogs  (.application.gllg-generate)
+   Recolour the DialogV2 frame to dark glass (default is light
+   parchment, which leaves our light text/controls unreadable).
+   ============================================================ */
+.application.gllg-generate{
+  border:1px solid var(--gl-edge); border-radius:14px; overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 34%),
+    linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.20)),
+    linear-gradient(98deg, color-mix(in srgb, var(--gl-accent) 14%, var(--gl-ink-1)), var(--gl-ink-1) 64%);
+  box-shadow:0 26px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.16), 0 0 50px var(--gl-bloom);
+  backdrop-filter:blur(16px) saturate(1.15);
+}
+.application.gllg-generate .window-header{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));
+  border-bottom:1px solid var(--gl-hair)}
+.application.gllg-generate .window-header .window-title{font-family:var(--gl-tech);font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;font-size:11px;color:var(--gl-text)}
+.application.gllg-generate .window-content{font-family:var(--gl-display);color:var(--gl-text);background:none}
+.application.gllg-generate .dialog-buttons,
+.application.gllg-generate .form-footer{background:none}
+/* style only footer action buttons — NOT window-control buttons, which carry
+   their Font Awesome icon class on the <button> (overriding font-family turns
+   the glyph into a tofu square). Notched, sheen on hover. */
+.application.gllg-generate button:not(.header-control):not([class*="fa-"]){
+  position:relative;overflow:hidden;font-family:var(--gl-display);font-weight:700;color:var(--gl-text);
+  background:rgba(255,255,255,.06);border:1px solid var(--gl-edge);
+  clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px);transition:background var(--gl-d-quick),box-shadow .15s,transform .1s}
+.application.gllg-generate button:not(.header-control):not([class*="fa-"]):hover{
+  background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gl-accent) 45%,transparent)}
+.application.gllg-generate button:not(.header-control):not([class*="fa-"]):active{transform:translateY(1px) scale(.98)}
+
+/* fills the dialog (explicit, resizable width) and shrinks with it. */
+.gllg-genform{display:flex;flex-direction:column;gap:9px;padding:4px 2px;width:100%;min-width:0;font-family:var(--gl-display)}
+.gllg-genform select,.gllg-genform input,.gllg-genform textarea{min-width:0;max-width:100%}
+.gllg-genform .gllg-field{display:flex;flex-direction:column;gap:4px}
+.gllg-genform .gllg-row{display:flex;gap:9px}
+.gllg-genform .gllg-row .gllg-field{flex:1}
+.gllg-genform label{font-family:var(--gl-tech);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gl-text-dim);font-weight:700}
+.gllg-genform .gllg-dim{color:var(--faint);letter-spacing:.02em;text-transform:none;font-weight:600;font-size:9px}
+.gllg-genform select,.gllg-genform input,.gllg-genform textarea{font:inherit;font-size:13px;color:var(--gl-text);
+  padding:6px 9px;border-radius:8px;border:1px solid var(--gl-edge);background:var(--gl-ink-2)}
+.gllg-genform textarea{resize:vertical;min-height:42px;line-height:1.4;font-family:var(--gl-display)}
+.gllg-genform select:focus,.gllg-genform input:focus,.gllg-genform textarea:focus{outline:none;border-color:var(--gl-accent);box-shadow:0 0 0 3px var(--gl-bloom)}
+.gllg-genform select option,.gllg-genform select optgroup{background:var(--gl-ink-3);color:var(--gl-text)}
+.gllg-genform p.gllg-dim{margin:4px 0 0;line-height:1.45}
+
+/* LLM on/off toggle */
 .gllg-genform .gllg-check{display:flex;align-items:flex-start;gap:8px;flex-direction:row;
-  text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:700;color:var(--ink);cursor:pointer}
+  text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:700;color:var(--gl-text);cursor:pointer;font-family:var(--gl-display)}
 .gllg-genform .gllg-check input{flex:0 0 auto;margin-top:1px;width:auto}
 .gllg-genform .gllg-check input:disabled{opacity:.5;cursor:not-allowed}
+.gllg-genform .gllg-llm-toggle{padding-top:2px}
 
-/* ---- creature-sourced loot block in the workshop dialog ---- */
+/* creature-sourced loot block (workshop dialog) */
 .gllg-workshop .gllg-creatures{display:flex;flex-direction:column;gap:6px}
 .gllg-workshop .gllg-creature-toggle{margin-top:1px}
 .gllg-workshop .gllg-creature-empty{margin:0;display:flex;align-items:flex-start;gap:7px;line-height:1.45}
-.gllg-workshop .gllg-creature-empty i{margin-top:2px;color:var(--tint);opacity:.8}
+.gllg-workshop .gllg-creature-empty i{margin-top:2px;color:var(--gl-accent);opacity:.8}
 .gllg-workshop .gllg-creature-chips{display:flex;flex-wrap:wrap;gap:5px;padding-left:24px}
 .gllg-workshop .gllg-creature-chip{display:inline-flex;align-items:center;gap:5px;
-  padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;color:var(--ink);
-  background:rgba(107,134,214,.12);border:1px solid rgba(155,179,224,.30);cursor:help}
+  padding:3px 9px;font-size:11px;font-weight:700;color:var(--gl-text);
+  clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
+  background:color-mix(in srgb,var(--gl-accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--gl-accent) 30%,transparent);cursor:help}
 .gllg-workshop .gllg-creature-chip .gllg-dim{font-weight:600}
-.gllg-genform .gllg-llm-toggle{padding-top:2px}
 
-/* ---- LLM call-log viewer (settings menu) ---- */
+/* roomy multi-line campaign-context field in the settings window */
+textarea.gllg-settings-textarea{width:100%;min-height:7.5em;resize:vertical;
+  font-family:inherit;line-height:1.45;padding:6px 8px}
+
+/* ============================================================
+   7 · LLM call-log viewer  (.application.gllg-llm-log)
+   ============================================================ */
 .application.gllg-llm-log{
-  --ink:#eef1f7; --muted:#98a2b6; --faint:#69748c;
-  --hair:rgba(255,255,255,.08); --edge:rgba(255,255,255,.13);
-  --tint:#6b86d6; --glowsoft:rgba(120,150,225,.16);
-  --ok:#67d39b; --crit:#e0584f;
-  --font:"Oxanium","Segoe UI",system-ui,sans-serif;
-  border:1px solid var(--edge);border-radius:13px;overflow:hidden;
-  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0) 22%),linear-gradient(160deg,#161d2c,#0a0e16 80%);
-  box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.09);
+  border:1px solid var(--gl-edge);border-radius:14px;overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 34%),
+    linear-gradient(98deg, color-mix(in srgb, var(--gl-accent) 12%, var(--gl-ink-1)), var(--gl-ink-1) 64%);
+  box-shadow:0 26px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter:blur(16px) saturate(1.15);
 }
-.application.gllg-llm-log .window-header{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));border-bottom:1px solid var(--hair)}
-.application.gllg-llm-log .window-header .window-title{font-family:var(--font);font-weight:700;color:var(--ink)}
-.application.gllg-llm-log .window-content{font-family:var(--font);color:var(--ink);background:none;padding:0}
+.application.gllg-llm-log .window-header{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));border-bottom:1px solid var(--gl-hair)}
+.application.gllg-llm-log .window-header .window-title{font-family:var(--gl-tech);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:11px;color:var(--gl-text)}
+.application.gllg-llm-log .window-content{font-family:var(--gl-display);color:var(--gl-text);background:none;padding:0}
 .gllg-llmlog-wrap{display:flex;flex-direction:column;height:100%;min-height:0}
 .gllg-llmlog-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:9px 12px;border-bottom:1px solid var(--hair)}
-.gllg-llmlog-count{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700}
+  padding:9px 12px;border-bottom:1px solid var(--gl-hair)}
+.gllg-llmlog-count{font-family:var(--gl-tech);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700}
 .gllg-llmlog-actions{display:flex;gap:7px}
-.gllg-llmlog-btn{font:inherit;font-size:11px;font-weight:700;color:var(--ink);cursor:pointer;
-  padding:5px 10px;border-radius:7px;border:1px solid var(--edge);background:rgba(255,255,255,.06)}
-.gllg-llmlog-btn:hover{background:rgba(255,255,255,.12);box-shadow:0 0 12px var(--glowsoft)}
+.gllg-llmlog-btn{position:relative;overflow:hidden;font:inherit;font-size:11px;font-weight:700;color:var(--gl-text);cursor:pointer;
+  padding:5px 10px;border:1px solid var(--gl-edge);background:rgba(255,255,255,.06);
+  clip-path:polygon(5px 0,100% 0,100% 100%,0 100%,0 5px);transition:background var(--gl-d-quick),box-shadow .15s,transform .1s}
+.gllg-llmlog-btn:hover{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gl-accent) 45%,transparent)}
+.gllg-llmlog-btn:active{transform:translateY(1px) scale(.98)}
 .gllg-llmlog-list{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .gllg-llmlog-list .gllg-empty{padding:18px 12px;text-align:center;color:var(--faint);font-size:12px;line-height:1.5}
-.gllg-llmlog-row{padding:7px 10px;border-radius:8px;border:1px solid var(--hair);background:rgba(255,255,255,.03)}
-.gllg-llmlog-row.is-fail{border-color:rgba(224,88,79,.35);background:rgba(224,88,79,.07)}
+.gllg-llmlog-row{padding:7px 10px;border:1px solid var(--gl-hair);background:rgba(255,255,255,.03);
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);animation:gllg-rise var(--gl-d-move) both var(--gl-ease)}
+.gllg-llmlog-row.is-fail{--gl-accent:var(--gl-hazard);border-color:color-mix(in srgb,var(--gl-hazard) 35%,transparent);background:color-mix(in srgb,var(--gl-hazard) 7%,transparent)}
 .gllg-llmlog-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.gllg-llmlog-ok{color:var(--ok);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.gllg-llmlog-fail{color:var(--crit);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.gllg-llmlog-kind{font-size:12px;font-weight:700;color:var(--ink)}
-.gllg-llmlog-meta{margin-left:auto;font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
-.gllg-llmlog-detail{margin-top:3px;font-size:11px;color:var(--muted);line-height:1.4}
+.gllg-llmlog-ok{color:var(--gl-good);font-family:var(--gl-tech);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.gllg-llmlog-fail{color:var(--gl-hazard);font-family:var(--gl-tech);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.gllg-llmlog-kind{font-size:12px;font-weight:700;color:var(--gl-text)}
+.gllg-llmlog-meta{margin-left:auto;font-family:var(--gl-tech);font-size:9px;color:var(--faint);font-variant-numeric:tabular-nums}
+.gllg-llmlog-detail{margin-top:3px;font-size:11px;color:var(--gl-text-dim);line-height:1.4}
 .gllg-llmlog-err{margin-top:3px;font-size:11px;color:#f0cdc8;line-height:1.4}
 
+/* ============================================================
+   8 · Registration marks  (design-language §4.2 · §4.5)
+   Quiet drafting annotations etched onto headers/footers:
+   L-brackets, serials, barcode data strips, CMYK chips. Low
+   alpha until their surface matters; carry no semantic info
+   (aria-hidden in markup). Brackets brighten toward the
+   contextual accent when their surface activates.
+   ============================================================ */
+.gllg-bracket{position:absolute;width:8px;height:8px;pointer-events:none;z-index:5;
+  border-top:1px solid var(--gl-line-strong);border-left:1px solid var(--gl-line-strong);opacity:.45;
+  transition:opacity .2s,border-color .2s}
+.gllg-bracket-tl{top:6px;left:7px}
+.gllg-serial{font-family:var(--gl-tech);font-size:7px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gl-text-faint);white-space:nowrap;line-height:1}
+.gllg-datastrip{display:inline-block;width:28px;height:7px;
+  background:repeating-linear-gradient(90deg,
+    color-mix(in srgb,var(--gl-line-strong) 55%,transparent) 0 1px, transparent 1px 3px,
+    color-mix(in srgb,var(--gl-line-strong) 55%,transparent) 3px 4px, transparent 4px 8px);
+  opacity:.5}
+.gllg-cmyk{display:inline-block;width:16px;height:4px;
+  background:linear-gradient(90deg,var(--gl-ink-0) 0 4px,var(--gl-cyan) 4px 8px,#ff66b3 8px 12px,var(--gl-signal) 12px 16px)}
+
+/* card-head registration row — normal flow, right-aligned, below the sub */
+.gllg-card-head .gllg-headreg{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:7px;opacity:.62}
+.gllg-card:hover .gllg-bracket{opacity:.85;border-color:var(--gl-accent)}
+/* auditor banner bracket brightens to the worst-severity accent on hover */
+#gllg-auditor .gllg-party:hover .gllg-bracket{opacity:.85;border-color:var(--gl-accent)}
+
+/* ============================================================
+   9 · Motion tiers  (design-language §6.4)
+   Driven by the module's "Animation" preference, applied as a
+   `gllg-motion-<tier>` class on <body>. `prefers-reduced-motion`
+   (§10) is an additional HARD floor on top of any chosen tier.
+   ============================================================ */
+/* REDUCED — collapse durations, kill sheens + decorative loops, ceremonies
+   become straight fades. */
+body.gllg-motion-reduced :is(#gllg-auditor,.gllg-card,.application.gllg-generate,.application.gllg-llm-log){
+  --gl-d-quick:120ms; --gl-d-move:160ms; --gl-d-reveal:160ms; --gl-d-splash:160ms;
+}
+body.gllg-motion-reduced .gllg-card,
+body.gllg-motion-reduced :is(#gllg-auditor,.gllg-card,.application.gllg-generate,.application.gllg-llm-log) *{
+  animation:none !important; transition-duration:120ms !important;
+}
+body.gllg-motion-reduced .gllg-btn::before,
+body.gllg-motion-reduced .gllg-mini::before,
+body.gllg-motion-reduced .gllg-card .gllg-btn::before{display:none}
+
+/* CINEMATIC — durations ×1.4, sheens gain a trailing flare, head rule echoes,
+   ceremony holds linger. */
+body.gllg-motion-cinematic :is(#gllg-auditor,.gllg-card,.application.gllg-generate,.application.gllg-llm-log){
+  --gl-d-quick:252ms; --gl-d-move:588ms; --gl-d-reveal:868ms; --gl-d-splash:1008ms;
+}
+body.gllg-motion-cinematic .gllg-btn::before,
+body.gllg-motion-cinematic .gllg-mini::before,
+body.gllg-motion-cinematic .gllg-card .gllg-btn::before{box-shadow:0 0 28px var(--gl-glow),0 0 8px var(--gl-glow)}
+body.gllg-motion-cinematic .gllg-card-head::after{box-shadow:0 0 24px var(--gl-glow);opacity:.7}
+body.gllg-motion-cinematic .gllg-card.gllg-done .gllg-card-title i{animation-duration:var(--gl-d-splash)}
+
+/* ============================================================
+   10 · Accessibility & motion discipline  (§6.4 · §8)
+   prefers-reduced-motion → kill decorative loops entirely and
+   collapse ceremonies to plain fades; keep functional transitions
+   tight (≤120ms). Static chamfers / glass remain.
+   ============================================================ */
 @media (prefers-reduced-motion: reduce){
-  .gllg-card,.gllg-card *{animation:none !important;transition:none !important}
-  .gllg-progress-body .gllg-spinner i,.gllg-card .fa-beat-fade{animation:none !important}
+  #gllg-auditor *,
+  .gllg-card,.gllg-card *,
+  .application.gllg-generate *,
+  .application.gllg-llm-log *{
+    animation:none !important;
+    transition-duration:120ms !important;
+  }
+  #gllg-auditor .gllg-member::before,
+  #gllg-auditor .chip.sev-critical,
+  .gllg-card .gllg-spinner i,
+  .gllg-card .fa-beat-fade{animation:none !important}
 }
